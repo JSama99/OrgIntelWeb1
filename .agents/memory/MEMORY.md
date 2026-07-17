@@ -1,0 +1,1 @@
+- [Vite build env](vite-build-env.md) — publish builds have no PORT/BASE_PATH; vite configs must not require them at build time. Reproduce deploy build failures locally with env unset.
