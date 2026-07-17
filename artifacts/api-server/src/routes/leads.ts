@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, insertLeadSchema, leadsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { notifyNewLead } from "../lib/notify.js";
 
 const router: IRouter = Router();
 
@@ -21,6 +22,11 @@ router.post("/leads", async (req, res) => {
       id: lead.id,
       email: lead.email,
       createdAt: lead.createdAt,
+    });
+
+    // Fire-and-forget — don't await so the response is already sent
+    notifyNewLead(lead.email, new Date(lead.createdAt)).catch((err) => {
+      console.error("Unexpected error in notifyNewLead:", err);
     });
   } catch (err: any) {
     // Drizzle wraps the pg error; check both the top-level and cause
