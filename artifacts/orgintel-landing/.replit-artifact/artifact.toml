@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "OrgIntel Landing Page"
+version = "1.0.0"
+id = "artifacts/orgintel-landing"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23139
+
+[services.development]
+run = "pnpm --filter @workspace/orgintel-landing run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/orgintel-landing", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/orgintel-landing/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23139"
+BASE_PATH = "/"

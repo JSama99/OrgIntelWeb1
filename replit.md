@@ -1,6 +1,6 @@
-# [Project name]
+# OrgIntel
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Landing page for OrgIntel — AI workforce management for solo founders. Ported 1:1 from the user's own self-contained HTML design (`artifacts/orgintel-landing/index.html`); it must not be redesigned or componentized without the user's request.
 
 ## Run & Operate
 
