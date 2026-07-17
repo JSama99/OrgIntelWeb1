@@ -704,6 +704,116 @@ footer {
 .foot small { font-family: var(--mono); font-size: 12px; color: var(--faint); }
 
 /* ============================================================
+   Waitlist modal
+   ============================================================ */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(6, 13, 26, 0.78);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s;
+}
+.modal-backdrop.open { opacity: 1; pointer-events: auto; }
+
+.modal {
+  position: relative;
+  width: 100%; max-width: 460px;
+  background: linear-gradient(160deg, var(--panel), var(--bg-2));
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  border-radius: var(--radius-lg);
+  padding: 40px 36px 36px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255,255,255,0.05);
+  transform: translateY(18px) scale(0.97);
+  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+}
+.modal-backdrop.open .modal { transform: none; }
+
+.modal-close {
+  position: absolute; top: 16px; right: 16px;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--faint);
+  transition: color 0.2s, background 0.2s;
+}
+.modal-close:hover { color: var(--ink); background: rgba(255,255,255,0.06); }
+.modal-close svg { width: 16px; height: 16px; stroke: currentColor; }
+
+.modal .eyebrow { margin-bottom: 14px; font-size: 11px; }
+.modal h2 { font-size: 28px; margin-bottom: 10px; max-width: none; }
+.modal .modal-sub { font-size: 14.5px; color: var(--muted); margin-bottom: 28px; }
+
+.modal-form { display: flex; flex-direction: column; gap: 12px; }
+.modal-field {
+  position: relative;
+}
+.modal-field input[type="email"] {
+  width: 100%;
+  background: rgba(var(--bg-rgb), 0.7);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font: 15px var(--body); color: var(--ink);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.modal-field input[type="email"]::placeholder { color: var(--faint); }
+.modal-field input[type="email"]:focus {
+  border-color: rgba(var(--accent-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
+}
+.modal-field input[type="email"].error {
+  border-color: rgba(255, 90, 90, 0.6);
+  box-shadow: 0 0 0 3px rgba(255, 90, 90, 0.1);
+}
+.modal-submit {
+  width: 100%;
+  background: var(--accent); color: #04211d;
+  font-family: var(--display); font-weight: 600; font-size: 15px;
+  padding: 14px 26px; border-radius: 999px;
+  transition: box-shadow 0.25s, opacity 0.2s, transform 0.15s;
+}
+.modal-submit:hover { box-shadow: 0 8px 28px rgba(var(--accent-rgb), 0.35); }
+.modal-submit:active { transform: scale(0.98); }
+.modal-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.modal-msg {
+  font-size: 13.5px; text-align: center;
+  min-height: 20px;
+  transition: opacity 0.2s;
+}
+.modal-msg.error { color: #ff7070; }
+.modal-msg.success { color: var(--accent); }
+
+.modal-note {
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  text-align: center; margin-top: 4px;
+}
+
+/* Success state */
+.modal-success {
+  display: none; flex-direction: column; align-items: center;
+  text-align: center; gap: 14px;
+}
+.modal.done .modal-form-wrap { display: none; }
+.modal.done .modal-success { display: flex; }
+
+.modal-success .check-ring {
+  width: 64px; height: 64px; border-radius: 50%;
+  border: 2px solid rgba(var(--accent-rgb), 0.4);
+  display: grid; place-items: center;
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.modal-success .check-ring svg { width: 28px; height: 28px; stroke: var(--accent); }
+.modal-success h3 {
+  font-family: var(--display); font-weight: 700; font-size: 22px;
+  letter-spacing: -0.015em;
+}
+.modal-success p { font-size: 14.5px; color: var(--muted); max-width: 300px; }
+
+/* ============================================================
    Responsive
    ============================================================ */
 @media (max-width: 1020px) {
@@ -730,6 +840,39 @@ footer {
 </style>
 </head>
 <body>
+
+<!-- ============================ WAITLIST MODAL ============================ -->
+<div class="modal-backdrop" id="waitlistBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal" id="waitlistModal">
+    <button class="modal-close" id="modalClose" aria-label="Close">
+      <svg viewBox="0 0 16 16" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg>
+    </button>
+
+    <div class="modal-form-wrap">
+      <span class="eyebrow"><span class="dot"></span>Early access</span>
+      <h2 id="modalTitle">Join the waitlist.</h2>
+      <p class="modal-sub">Be among the first founders to give their AI workforce a brain. No credit card. No spam. Ever.</p>
+      <form class="modal-form" id="waitlistForm" novalidate>
+        <div class="modal-field">
+          <input type="email" id="waitlistEmail" name="email" placeholder="you@yourbusiness.com" autocomplete="email" required />
+        </div>
+        <button type="submit" class="modal-submit" id="waitlistSubmit">Get early access</button>
+        <p class="modal-msg" id="waitlistMsg" aria-live="polite"></p>
+        <p class="modal-note">Free to start &middot; Your first agent in under five minutes</p>
+      </form>
+    </div>
+
+    <div class="modal-success">
+      <div class="check-ring">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 12.5l5.5 5.5L20 7"/>
+        </svg>
+      </div>
+      <h3>You&rsquo;re on the list.</h3>
+      <p>We&rsquo;ll reach out as soon as your spot opens up. Your business is about to get a brain.</p>
+    </div>
+  </div>
+</div>
 
 <div class="cursor-dot" id="cursorDot" aria-hidden="true"></div>
 <div class="cursor-ring" id="cursorRing" aria-hidden="true"></div>
@@ -1538,6 +1681,100 @@ if (MOTION) {
   document.querySelectorAll('.pipe-node').forEach((n) => n.classList.add('lit'));
   document.querySelectorAll('.stage').forEach((s) => { s.style.opacity = '1'; });
 }
+
+/* ============================================================
+   Waitlist modal — intercept "Start free" CTAs
+   ============================================================ */
+(function waitlistModal() {
+  const backdrop = document.getElementById('waitlistBackdrop');
+  const modal    = document.getElementById('waitlistModal');
+  const closeBtn = document.getElementById('modalClose');
+  const form     = document.getElementById('waitlistForm');
+  const emailEl  = document.getElementById('waitlistEmail');
+  const submitEl = document.getElementById('waitlistSubmit');
+  const msgEl    = document.getElementById('waitlistMsg');
+  if (!backdrop || !form) return;
+
+  function openModal() {
+    backdrop.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => emailEl && emailEl.focus(), 80);
+  }
+
+  function closeModal() {
+    backdrop.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // Intercept all primary "Start free" buttons (not the "Book a demo" one)
+  document.querySelectorAll('.btn-primary').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openModal();
+    });
+  });
+
+  closeBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) closeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && backdrop.classList.contains('open')) closeModal();
+  });
+
+  function setMsg(text, type) {
+    msgEl.textContent = text;
+    msgEl.className = 'modal-msg ' + (type || '');
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = emailEl.value.trim();
+
+    // client-side validation
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      emailEl.classList.add('error');
+      setMsg('Please enter a valid email address.', 'error');
+      emailEl.focus();
+      return;
+    }
+    emailEl.classList.remove('error');
+    setMsg('');
+
+    submitEl.disabled = true;
+    submitEl.textContent = 'Joining\u2026';
+
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, source: 'landing' }),
+      });
+
+      if (res.status === 201) {
+        modal.classList.add('done');
+        return;
+      }
+
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        setMsg(body.error || "You\u2019re already on the list!", 'error');
+      } else {
+        setMsg(body.error || 'Something went wrong. Please try again.', 'error');
+      }
+    } catch (_) {
+      setMsg('Connection error. Please check your internet and try again.', 'error');
+    } finally {
+      submitEl.disabled = false;
+      submitEl.textContent = 'Get early access';
+    }
+  });
+
+  emailEl.addEventListener('input', () => {
+    emailEl.classList.remove('error');
+    setMsg('');
+  });
+})();
 </script>
 </body>
 </html>
