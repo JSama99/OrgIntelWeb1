@@ -4,7 +4,7 @@
   const KEY = 'orgintel-hq-progress-v1';
   const TOTAL_STEPS = 8;
   let step = 0;
-  let selected = 1;
+  let selected = -1;
   let evidenceSeen = new Set();
   let answerLocked = false;
   let overlay = null;
@@ -92,7 +92,7 @@
     const hq = window.OrgIntelHQ;
     const visualLevels = [0.20, 0.30, 0.54, 0.72, 1, 1, 1, 1];
     if (hq && hq.setDecisionVisual) {
-      hq.setDecisionVisual({ active: true, chosen: selected, connections: visualLevels[step] || 0.2 });
+      hq.setDecisionVisual({ active: true, chosen: selected >= 0 ? selected : 1, connections: visualLevels[step] || 0.2 });
     }
 
     let html = '';
@@ -204,7 +204,7 @@
 
   function open() {
     const p = readProgress();
-    selected = Number.isInteger(p.decisionSelected) ? p.decisionSelected : 1;
+    selected = Number.isInteger(p.decisionSelected) ? p.decisionSelected : -1;
     evidenceSeen = new Set(Array.isArray(p.decisionEvidenceSeen) ? p.decisionEvidenceSeen : []);
     step = p.decisionComplete ? 7 : Math.max(0, Math.min(6, Number(p.decisionStep) || 0));
     answerLocked = false;
@@ -218,7 +218,7 @@
     overlay.classList.remove('on');
     document.body.classList.remove('stage5-open');
     const hq = window.OrgIntelHQ;
-    if (hq && hq.setDecisionVisual) hq.setDecisionVisual({ active: false, chosen: selected, connections: 1 });
+    if (hq && hq.setDecisionVisual) hq.setDecisionVisual({ active: false, chosen: selected >= 0 ? selected : 1, connections: 1 });
     if (hq && hq.leaveFocus) hq.leaveFocus();
   }
 
@@ -230,8 +230,8 @@
     if (target.dataset.action === 'back') { go(step - 1); return; }
     if (target.dataset.action === 'next') { go(step + 1); return; }
     if (target.dataset.action === 'replay') {
-      selected = 1; evidenceSeen = new Set(); answerLocked = false;
-      saveProgress({ decisionComplete: false, decisionStep: 0, decisionSelected: 1, decisionEvidenceSeen: [] });
+      selected = -1; evidenceSeen = new Set(); answerLocked = false;
+      saveProgress({ decisionComplete: false, decisionStep: 0, decisionSelected: -1, decisionEvidenceSeen: [] });
       go(0); return;
     }
     if (target.dataset.action === 'proof') {
