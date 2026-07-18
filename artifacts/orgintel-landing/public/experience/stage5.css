@@ -26,6 +26,8 @@
   max-height: min(78vh, 760px);
   overflow: auto;
   overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   padding: 24px;
   color: #e9f1f7;
   border: 1px solid rgba(31,224,198,.36);
