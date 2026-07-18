@@ -24,9 +24,29 @@ if (Number.isNaN(port) || port <= 0) {
 
 const basePath = process.env.BASE_PATH ?? '/';
 
+// Plugin: redirect /experience/ → /experience/index.html so Vite's static
+// file server resolves the public/ subdirectory index without SPA fallback.
+function publicDirIndexPlugin(): import('vite').Plugin {
+  return {
+    name: 'public-dir-index',
+    configureServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        if (req.url === '/experience/' || req.url === '/experience') {
+          req.url = '/experience/index.html';
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: basePath,
+  // MPA mode: disables the SPA fallback that would serve index.html for every
+  // unmatched route (e.g. /experience/), letting Vite serve public/ files directly.
+  appType: 'mpa',
   plugins: [
+    publicDirIndexPlugin(),
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),

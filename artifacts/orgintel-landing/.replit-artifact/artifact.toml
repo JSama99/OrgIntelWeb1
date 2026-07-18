@@ -18,9 +18,6 @@ build = [ "pnpm", "--filter", "@workspace/orgintel-landing", "run", "build" ]
 serve = "static"
 publicDir = "artifacts/orgintel-landing/dist/public"
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
 
 [services.env]
 PORT = "23139"
