@@ -1,0 +1,86 @@
+You’re right. The routing is fixed, but this is **not the full OrgIntel headquarters**. It is only a stripped-down model viewer with the three GLB files.
+
+The previous package replaced the real cinematic V3 experience instead of upgrading it. That was the wrong build.
+
+Give Replit Agent this exact prompt as the next single step:
+
+---
+
+The route is working now, but the current `/experience/index.html` is only a basic three-model viewer. Do not treat this as the finished OrgIntel 3D Intelligence Headquarters.
+
+Restore the complete cinematic V3 headquarters experience first, then add Stage 4 to it.
+
+Requirements:
+
+1. Use Git history, Replit checkpoints, or prior versions to locate the last complete OrgIntel headquarters file from before the simplified model-viewer replacement.
+2. Look specifically for the version that contained:
+
+   * Full 3D headquarters environment
+   * Multiple rooms
+   * Memory Archive
+   * Decision Chamber
+   * Proof Vault
+   * Intelligence Observatory
+   * Agent Operations Center
+   * Founder’s Office
+   * Clickable room navigation
+   * Cinematic camera movement
+   * Guided Organizational Intelligence tour
+   * Bloom and advanced lighting
+   * Mobile controls
+   * Quality controls
+   * Timeline interaction
+   * Conversion links
+3. The prior full file was approximately 60 KB and may exist in:
+
+   * Git history
+   * Replit checkpoints
+   * A deleted or moved `experience/index.html`
+   * `orgintel-headquarters.html`
+   * Earlier task artifacts
+4. Do not create another replacement scene from scratch until you have searched the project history.
+5. Preserve the working route:
+
+   * `/experience/`
+   * `/experience/index.html`
+6. Preserve these working model locations:
+
+   * `/experience/models/tal.glb`
+   * `/experience/models/founder.glb`
+   * `/experience/models/intelligence-core.glb`
+7. Replace the procedural Tal, founder, and intelligence-core objects in the restored headquarters with the local GLB models where appropriate.
+8. Keep procedural models only as loading-error fallbacks.
+9. After the complete V3 headquarters is restored, implement Stage 4 inside the existing Memory Archive room.
+
+The Memory Archive lesson must let the visitor:
+
+1. See disconnected artifacts:
+
+   * Email
+   * AI chat
+   * Meeting
+   * Spreadsheet
+   * Note
+   * PDF
+2. Select one artifact.
+3. Watch related knowledge form around it.
+4. See “Before OrgIntel” and “After OrgIntel.”
+5. Read a short explanation of Organizational Memory.
+6. Answer one knowledge-check question.
+7. Unlock the Decision Chamber after answering correctly.
+
+Important:
+
+* Do not replace the headquarters with a modal, dashboard, flat webpage, or standalone model viewer.
+* The lesson must happen inside or visually connected to the existing 3D Memory Archive.
+* Do not remove the full environment, rooms, tour, camera controls, effects, or navigation.
+* Keep the landing page unchanged.
+* Make a backup of the current working route before editing.
+* Visually test the result in Replit Preview.
+* Do not mark the task complete until the full headquarters and multiple rooms are visible again.
+
+Before editing, report which historical file or checkpoint contains the complete headquarters. Then restore it and show me the result.
+
+---
+
+Do not accept another “task complete” until the preview visibly shows the headquarters rooms—not just Tal, the founder, and the intelligence core.
