@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OrgIntel — Intelligence Headquarters</title>
+<meta name="description" content="Step inside the OrgIntel Intelligence Headquarters — a 3D experience." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='10' r='4' fill='%231FE0C6'/%3E%3Ccircle cx='8' cy='23' r='2.6' fill='%231FE0C6' opacity='.75'/%3E%3Ccircle cx='24' cy='23' r='2.6' fill='%231FE0C6' opacity='.75'/%3E%3Cpath d='M16 14v4M16 18l-8 5M16 18l8 5' stroke='%231FE0C6' stroke-width='1.4' opacity='.6'/%3E%3C/svg%3E" />
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #060d1a;
+  --accent: #1fe0c6;
+  --accent-rgb: 31, 224, 198;
+  --amber: #ffb454;
+  --ink: #e9f1f7;
+  --muted: #8fa6bc;
+  --faint: #5d7288;
+  --display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--display), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Canvas ── */
+#canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Loading screen ── */
+#loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+#loader.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.loader-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.loader-track {
+  width: 220px;
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.loader-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0e9e8c, var(--accent));
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.6);
+}
+
+.loader-label {
+  font-family: var(--mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ── HUD overlay ── */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* top-left brand */
+.hud-brand {
+  position: absolute;
+  top: 22px;
+  left: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  pointer-events: auto;
+  text-decoration: none;
+  color: var(--ink);
+  opacity: 0;
+  transition: opacity 1s ease 0.5s;
+}
+.hud-brand.visible { opacity: 1; }
+
+/* top-right status */
+.hud-status {
+  position: absolute;
+  top: 22px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 1s ease 0.6s;
+}
+.hud-status.visible { opacity: 1; }
+.hud-status .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: blip 2s ease-in-out infinite;
+}
+@keyframes blip { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+/* bottom labels */
+.hud-labels {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 56px;
+  opacity: 0;
+  transition: opacity 1s ease 0.8s;
+}
+.hud-labels.visible { opacity: 1; }
+.hud-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.hud-label b {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.hud-label span {
+  font-family: var(--mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* bottom-right hint */
+.hud-hint {
+  position: absolute;
+  bottom: 36px;
+  right: 28px;
+  font-family: var(--mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+  opacity: 0;
+  transition: opacity 1s ease 1s;
+}
+.hud-hint.visible { opacity: 1; }
+
+/* back link */
+.hud-back {
+  position: absolute;
+  bottom: 36px;
+  left: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  pointer-events: auto;
+  text-decoration: none;
+  transition: color 0.25s, opacity 1s ease 0.9s;
+  opacity: 0;
+}
+.hud-back.visible { opacity: 1; }
+.hud-back:hover { color: var(--accent); }
+.hud-back svg { width: 13px; height: 13px; }
+
+/* error banner */
+#error-banner {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  background: rgba(255,80,80,0.12);
+  border: 1px solid rgba(255,80,80,0.35);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-family: var(--mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #ff9090;
+  display: none;
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<!-- Loading screen -->
+<div id="loader">
+  <div class="loader-brand">
+    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="10" r="4" fill="#1FE0C6"/>
+      <circle cx="8" cy="23" r="2.6" fill="#1FE0C6" opacity=".75"/>
+      <circle cx="24" cy="23" r="2.6" fill="#1FE0C6" opacity=".75"/>
+      <path d="M16 14v4M16 18l-8 5M16 18l8 5" stroke="#1FE0C6" stroke-width="1.4" opacity=".6" fill="none"/>
+    </svg>
+    OrgIntel
+  </div>
+  <div class="loader-track"><div class="loader-fill" id="loaderFill"></div></div>
+  <div class="loader-label" id="loaderLabel">Initialising headquarters…</div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <a href="/" class="hud-brand" id="hudBrand">
+    <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="10" r="4" fill="#1FE0C6"/>
+      <circle cx="8" cy="23" r="2.6" fill="#1FE0C6" opacity=".75"/>
+      <circle cx="24" cy="23" r="2.6" fill="#1FE0C6" opacity=".75"/>
+      <path d="M16 14v4M16 18l-8 5M16 18l8 5" stroke="#1FE0C6" stroke-width="1.4" opacity=".6" fill="none"/>
+    </svg>
+    OrgIntel HQ
+  </a>
+
+  <div class="hud-status" id="hudStatus">
+    <span class="dot"></span>
+    Intelligence active
+  </div>
+
+  <div class="hud-labels" id="hudLabels">
+    <div class="hud-label">
+      <b>Tal</b>
+      <span>Archivist</span>
+    </div>
+    <div class="hud-label">
+      <b>Intelligence Core</b>
+      <span>Decision Engine</span>
+    </div>
+    <div class="hud-label">
+      <b>Founder</b>
+      <span>CEO</span>
+    </div>
+  </div>
+
+  <div class="hud-hint" id="hudHint">Drag to orbit · Scroll to zoom</div>
+
+  <a href="/" class="hud-back" id="hudBack">
+    <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <path d="M8 2L3 6.5 8 11"/>
+    </svg>
+    Back to home
+  </a>
+</div>
+
+<div id="error-banner"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ─────────────────────────────────────────────────────────
+   Setup
+───────────────────────────────────────────────────────── */
+const canvas  = document.getElementById('canvas');
+const loader  = document.getElementById('loader');
+const fill    = document.getElementById('loaderFill');
+const label   = document.getElementById('loaderLabel');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = false;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060d1a);
+
+// Subtle fog for depth
+scene.fog = new THREE.FogExp2(0x060d1a, 0.045);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 2, 14);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 5;
+controls.maxDistance = 30;
+controls.maxPolarAngle = Math.PI * 0.72;
+controls.target.set(0, 1.5, 0);
+controls.update();
+
+/* ─────────────────────────────────────────────────────────
+   Lighting
+───────────────────────────────────────────────────────── */
+// Ambient base
+const ambient = new THREE.AmbientLight(0x0a1526, 2.2);
+scene.add(ambient);
+
+// Key light — warm-white from above-right
+const key = new THREE.DirectionalLight(0xd4eaff, 3.5);
+key.position.set(6, 10, 8);
+scene.add(key);
+
+// Fill light — teal accent from left
+const fill1 = new THREE.PointLight(0x1fe0c6, 4, 22);
+fill1.position.set(-7, 4, 4);
+scene.add(fill1);
+
+// Rim light — amber from behind-right
+const rim = new THREE.PointLight(0xffb454, 2.5, 18);
+rim.position.set(5, 2, -6);
+scene.add(rim);
+
+// Intelligence core glow (centre)
+const coreGlow = new THREE.PointLight(0x1fe0c6, 3, 10);
+coreGlow.position.set(0, 2, 0);
+scene.add(coreGlow);
+
+/* ─────────────────────────────────────────────────────────
+   Floor grid
+───────────────────────────────────────────────────────── */
+const gridHelper = new THREE.GridHelper(40, 40, 0x0d1b30, 0x0d1b30);
+gridHelper.position.y = -0.01;
+scene.add(gridHelper);
+
+// Subtle floor plane (receives glow)
+const floorGeo = new THREE.PlaneGeometry(40, 40);
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x060d1a,
+  metalness: 0.1,
+  roughness: 0.95,
+  transparent: true,
+  opacity: 0.6,
+});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.02;
+scene.add(floor);
+
+/* ─────────────────────────────────────────────────────────
+   Particles (star field)
+───────────────────────────────────────────────────────── */
+(function buildStars() {
+  const count = 900;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3]     = (Math.random() - 0.5) * 80;
+    positions[i * 3 + 1] = Math.random() * 35 + 1;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 80;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0x8fa6bc,
+    size: 0.08,
+    transparent: true,
+    opacity: 0.55,
+    sizeAttenuation: true,
+  });
+  scene.add(new THREE.Points(geo, mat));
+})();
+
+/* ─────────────────────────────────────────────────────────
+   Load GLB models
+───────────────────────────────────────────────────────── */
+const gltfLoader = new GLTFLoader();
+const loadErrors = [];
+let loadedCount = 0;
+const TOTAL = 3;
+
+const MODELS = [
+  {
+    url: './models/tal.glb',
+    name: 'tal',
+    label: 'Loading Tal…',
+    // Place left, facing slightly inward
+    position: new THREE.Vector3(-4.2, 0, 0),
+    scale: 1.0,
+    rotY: Math.PI * 0.18,
+  },
+  {
+    url: './models/intelligence-core.glb',
+    name: 'intelligence-core',
+    label: 'Loading Intelligence Core…',
+    position: new THREE.Vector3(0, 1.4, 0),
+    scale: 0.55,
+    rotY: 0,
+  },
+  {
+    url: './models/founder.glb',
+    name: 'founder',
+    label: 'Loading Founder…',
+    // Place right, facing slightly inward
+    position: new THREE.Vector3(4.2, 0, 0),
+    scale: 0.72,
+    rotY: -Math.PI * 0.18,
+  },
+];
+
+// Groups for animation
+const groups = {};
+
+function setProgress(pct, text) {
+  fill.style.width = pct + '%';
+  if (text) label.textContent = text;
+}
+
+function makeFallback(name) {
+  // Simple procedural fallback so the scene is never empty
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x102540 });
+  return new THREE.Mesh(geo, mat);
+}
+
+function onModelLoaded(modelDef, gltf) {
+  const group = new THREE.Group();
+  group.name = modelDef.name;
+
+  const model = gltf.scene;
+
+  // Compute bounding box to auto-ground the model
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const minY = box.min.y;
+
+  // Shift so the model's feet sit on y=0
+  model.position.y = -minY;
+
+  group.add(model);
+  group.position.copy(modelDef.position);
+  group.scale.setScalar(modelDef.scale);
+  group.rotation.y = modelDef.rotY;
+
+  scene.add(group);
+  groups[modelDef.name] = group;
+
+  loadedCount++;
+  const pct = Math.round((loadedCount / TOTAL) * 100);
+  setProgress(pct);
+
+  if (loadedCount === TOTAL) {
+    onAllLoaded();
+  }
+}
+
+function onModelError(modelDef, err) {
+  console.error(`Failed to load ${modelDef.url}:`, err);
+  loadErrors.push(modelDef.name);
+
+  const fallback = makeFallback(modelDef.name);
+  const group = new THREE.Group();
+  group.name = modelDef.name;
+  group.add(fallback);
+  group.position.copy(modelDef.position);
+  group.scale.setScalar(modelDef.scale);
+  group.rotation.y = modelDef.rotY;
+  scene.add(group);
+  groups[modelDef.name] = group;
+
+  loadedCount++;
+  const pct = Math.round((loadedCount / TOTAL) * 100);
+  setProgress(pct);
+
+  if (loadedCount === TOTAL) {
+    onAllLoaded();
+    showErrors();
+  }
+}
+
+function showErrors() {
+  if (!loadErrors.length) return;
+  const banner = document.getElementById('error-banner');
+  banner.textContent = `Could not load: ${loadErrors.join(', ')} — check console`;
+  banner.style.display = 'block';
+}
+
+// Kick off all three loads in parallel
+MODELS.forEach((def, i) => {
+  setTimeout(() => {
+    setProgress(Math.round((i / TOTAL) * 25), def.label);
+    gltfLoader.load(
+      def.url,
+      (gltf) => onModelLoaded(def, gltf),
+      (xhr) => {
+        // individual progress — not critical
+      },
+      (err) => onModelError(def, err)
+    );
+  }, i * 80); // stagger slightly so labels cycle visibly
+});
+
+/* ─────────────────────────────────────────────────────────
+   Post-load: reveal HUD
+───────────────────────────────────────────────────────── */
+function onAllLoaded() {
+  setProgress(100, 'Headquarters ready');
+
+  setTimeout(() => {
+    loader.classList.add('hidden');
+    document.getElementById('hudBrand').classList.add('visible');
+    document.getElementById('hudStatus').classList.add('visible');
+    document.getElementById('hudLabels').classList.add('visible');
+    document.getElementById('hudHint').classList.add('visible');
+    document.getElementById('hudBack').classList.add('visible');
+  }, 600);
+}
+
+/* ─────────────────────────────────────────────────────────
+   Render loop
+───────────────────────────────────────────────────────── */
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const t = clock.getElapsedTime();
+
+  // Rotate intelligence-core continuously
+  const core = groups['intelligence-core'];
+  if (core) {
+    core.rotation.y = t * 0.28;
+    // Gentle bob
+    core.position.y = MODELS[1].position.y + Math.sin(t * 0.7) * 0.12;
+  }
+
+  // Subtle gentle sway for Tal
+  const tal = groups['tal'];
+  if (tal) {
+    tal.rotation.y = MODELS[0].rotY + Math.sin(t * 0.55) * 0.04;
+    tal.position.y = Math.sin(t * 0.9 + 1.2) * 0.06;
+  }
+
+  // Subtle gentle sway for Founder
+  const founder = groups['founder'];
+  if (founder) {
+    founder.rotation.y = MODELS[2].rotY + Math.sin(t * 0.48 + 2.1) * 0.04;
+    founder.position.y = Math.sin(t * 0.75 + 0.5) * 0.05;
+  }
+
+  // Pulse the core glow
+  coreGlow.intensity = 2.5 + Math.sin(t * 1.4) * 1.0;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+/* ─────────────────────────────────────────────────────────
+   Resize
+───────────────────────────────────────────────────────── */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+});
+</script>
+</body>
+</html>
