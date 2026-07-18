@@ -1,0 +1,105 @@
+Yes. Give Replit Agent this exact prompt:
+
+---
+
+I need you to fix the routing and deployment for the standalone OrgIntel 3D experience.
+
+Current project structure:
+
+```text
+/home/runner/workspace/artifacts/orgintel-landing/
+├── src/
+├── public/
+│   └── experience/
+│       ├── index.html
+│       ├── README.txt
+│       └── models/
+│           ├── tal.glb
+│           ├── founder.glb
+│           └── intelligence-core.glb
+├── vite.config.ts
+└── package.json
+```
+
+The Vite development server returns HTTP 200 for:
+
+```text
+/experience/index.html
+```
+
+But the Replit Preview still displays the React landing page instead of the standalone 3D experience.
+
+Please do the following:
+
+1. Inspect the current Vite configuration, React routing, Replit workflow, and preview configuration.
+2. Determine why `/experience/index.html` is being rewritten or routed to the main landing-page `index.html`.
+3. Configure Vite so files under `public/experience/` are served directly and are not intercepted by the React single-page application fallback.
+4. Make both of these URLs work:
+
+```text
+/experience/
+/experience/index.html
+```
+
+5. Keep the regular landing page working at:
+
+```text
+/
+```
+
+6. Confirm that these model paths load successfully from the experience:
+
+```text
+/experience/models/tal.glb
+/experience/models/founder.glb
+/experience/models/intelligence-core.glb
+```
+
+7. Inspect `public/experience/index.html` and make sure its model URLs are absolute or correctly relative to the experience directory. Prefer:
+
+```javascript
+./models/tal.glb
+./models/founder.glb
+./models/intelligence-core.glb
+```
+
+8. Check for any JavaScript redirect, base tag, navigation handler, service worker, or fallback middleware that sends the visitor back to `/`.
+9. Update the Replit workflow so the correct Vite app runs using the provided `$PORT`, not a hard-coded port.
+10. Test the following with `curl` and report the response status and content type:
+
+```bash
+curl -I http://localhost:$PORT/
+curl -I http://localhost:$PORT/experience/
+curl -I http://localhost:$PORT/experience/index.html
+curl -I http://localhost:$PORT/experience/models/tal.glb
+```
+
+11. Open the route in Preview and verify visually that the 3D headquarters loads rather than the landing page.
+12. Do not remove or redesign the existing landing page.
+13. Do not move the experience into `dist`, because Vite regenerates that directory.
+14. Make the smallest reliable code and configuration changes necessary.
+
+After fixing it, tell me:
+
+* What caused the routing problem
+* Which files you changed
+* The exact working preview URL
+* Whether all three GLB models returned HTTP 200
+
+Do not mark the task complete until the 3D experience is visibly loading in Replit Preview.
+
+---
+
+One important detail: your screenshot shows two `experience` directories inside the project tree. Tell the Agent to use only:
+
+```text
+artifacts/orgintel-landing/public/experience/
+```
+
+and remove or ignore:
+
+```text
+artifacts/orgintel-landing/experience/
+```
+
+That duplicate is likely contributing to the confusion.
