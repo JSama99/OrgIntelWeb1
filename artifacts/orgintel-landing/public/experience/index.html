@@ -256,8 +256,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   box-shadow: 0 0 60px rgba(31,224,198,0.14);
   display: flex; flex-direction: column; gap: 16px;
   opacity: 0; transition: opacity 0.35s;
+  pointer-events: none;
 }
-.mem-lesson.on { opacity: 1; }
+.mem-lesson.on { opacity: 1; pointer-events: auto; }
 .ml-close {
   position: absolute; top: 14px; right: 16px;
   background: none; border: none; color: rgba(31,224,198,0.55);
@@ -1436,10 +1437,13 @@ function boot() {
     clickStart = { x:e.clientX, y:e.clientY };
   });
   canvas.addEventListener('pointerup', (e) => {
-    if (!clickStart || !pointerHoverStation || tour.on) return;
+    if (!clickStart || tour.on) return;
     const moved = Math.hypot(e.clientX - clickStart.x, e.clientY - clickStart.y);
     clickStart = null;
-    if (moved < 7) inspectStation(pointerHoverStation);
+    if (moved < 7) {
+      const target = pointerHoverStation || nearestStation;
+      if (target) inspectStation(target);
+    }
   });
 
   function updateRaycast() {
