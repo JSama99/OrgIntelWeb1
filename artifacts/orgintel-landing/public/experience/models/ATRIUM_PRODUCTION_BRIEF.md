@@ -16,7 +16,9 @@ The graybox establishes navigation clearances, scale, and room placement. Produc
 - Architectural glass extensions: implemented
 - Office depth and warm practical-light surfaces: implemented
 - Furniture and planting silhouettes: implemented
-- Authored texture maps: pending
+- Authored base-color material atlas: implemented
+- Normal and ORM maps: pending
+- Bounded non-shadow-casting practical lights: implemented
 - Baked lightmaps and reflection probes: pending
 - Desktop/mobile LODs and compression: pending
 - Live experience integration: intentionally pending
@@ -79,6 +81,17 @@ Production pass 1 defines expanded material families, including:
 - `MAT_Portal_Navy`
 
 Production materials should use glTF-compatible PBR maps. Prominent surfaces should receive base color, roughness, metallic, normal, ambient-occlusion, and selective emissive maps. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
+
+Production pass 2 embeds `textures/atrium-material-atlas.png` into the GLB and assigns its four material regions with `KHR_texture_transform`:
+
+- polished midnight-navy stone
+- charcoal architectural stone
+- brushed titanium
+- blackened steel
+
+The atlas is a restrained base-color layer. Material roughness, metallic response, clear coat, glass transmission, IOR, and emissive strength remain physically separated in the glTF materials. Normal and ORM maps remain a later authored pass.
+
+The GLB also carries nine bounded `KHR_lights_punctual` practical lights for the central core, office warmth, and console portal. They intentionally do not request shadows; cinematic key lighting and reflection probes remain the responsibility of the host scene.
 
 ## Environment budgets
 
