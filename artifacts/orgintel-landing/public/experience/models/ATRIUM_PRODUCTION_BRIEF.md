@@ -2,14 +2,15 @@
 
 ## Graybox production brief
 
-This directory contains two review assets:
+This directory contains two validated assets and reserves a third isolated review asset:
 
 - `orgintel-headquarters-atrium-graybox.glb` — locked scale and layout reference.
-- `orgintel-headquarters-atrium-production.glb` — production pass 1 with detailed architecture, expanded PBR material families, an embedded runtime base-color atlas, and live experience integration.
+- `orgintel-headquarters-atrium-production.glb` — production pass 2 with detailed architecture, expanded PBR material families, an embedded runtime base-color atlas, and live experience integration.
+- `orgintel-headquarters-atrium-pass3-review.glb` — reserved Pass 3 review output. It must not replace the production GLB before validation and live-integration approval.
 
 The graybox establishes navigation clearances, scale, and room placement. Production pass 1 adds two occupied balcony levels, office bays, architectural glass, stairs, floor inlays, ceiling coffers, portal depth, central-core detailing, practical fixtures, and environmental dressing. The production atrium is now connected to the live `/experience/` route through `experience/index.html`, with the procedural atrium retained as a fallback.
 
-## Production pass 1 status
+## Production pass 2 status
 
 - Architectural detail: implemented
 - PBR material separation: implemented
@@ -33,6 +34,42 @@ The graybox establishes navigation clearances, scale, and room placement. Produc
 ## Runtime material and lighting notes
 
 The current production GLB includes a 1024 × 1024 base-color material atlas embedded in the runtime GLB. The external atlas PNG remains the generator source asset. Normal maps and combined occlusion/roughness/metallic maps are still pending. The GLB includes nine bounded `KHR_lights_punctual` practical lights, and runtime integration keeps embedded glTF lights non-shadow-casting. Blender-authored lightmaps, reflection probes, desktop/mobile LODs, and geometry compression remain pending.
+
+## Pass 3 isolated review workflow
+
+Pass 3 begins as an additive review asset. The live loader, current production GLB, Pass 2 atlas, portal coordinates, collision behavior, lessons, progression, and procedural fallback remain unchanged during this phase.
+
+The generator accepts `--pass3-review` and then requires these binary source textures beside the Pass 2 atlas:
+
+- `textures/atrium-normal-atlas.png` — tangent-space normal atlas using the same four regions and padding as the base-color atlas.
+- `textures/atrium-orm-atlas.png` — combined occlusion/roughness/metallic atlas with occlusion in red, roughness in green, and metalness in blue.
+
+The review GLB embeds all three atlases and assigns the normal and ORM maps only to the four authored surface families. Material-specific normal and occlusion strengths keep the polished floor restrained while allowing stronger depth in charcoal stone and directional variation in brushed metal.
+
+This first Pass 3 slice does not add reflection probes, modify bloom, tune the live glass, or switch runtime assets. Those changes depend on visual and performance approval of the review GLB.
+
+### Pass 3 texture budgets
+
+Source review atlases may remain 1024 × 1024 PNG files while materials are tuned. Delivery targets after visual approval are:
+
+- Desktop: 1024 × 1024 base color, normal, and ORM atlases, converted to KTX2/Basis.
+- Tablet: 1024 × 1024 base color and ORM; normal atlas may be reduced to 512 × 512 after comparison testing.
+- Mobile: 512 × 512 atlases unless device testing demonstrates that 1024 × 1024 materially improves the visible result.
+- ORM data must be treated as linear data; base color is sRGB; normal data is non-color/linear.
+- The uncompressed review asset is never the final mobile delivery asset.
+
+### Pass 3 validation gate
+
+Before the review GLB can replace the production asset or be referenced by the live loader, verify:
+
+1. Khronos validation reports zero errors and zero warnings.
+2. Two consecutive generations produce identical SHA-256 hashes.
+3. Portal coordinates and all named navigation nodes remain unchanged.
+4. Floor response is polished but not mirror-like, with no visible normal-map seams.
+5. Stone, titanium, and blackened steel remain distinguishable under cyan, gold, and warm practical lights.
+6. Glass, reflections, bloom, and contact depth are evaluated separately after the PBR maps pass review.
+7. Frame time and texture memory are recorded in Safari, desktop Chrome, tablet, and mobile quality modes.
+8. The current production GLB and procedural fallback remain available for rollback.
 
 ## Coordinate system
 
@@ -91,7 +128,7 @@ Production pass 1 defines expanded material families, including:
 - `MAT_Foliage_DeepGreen`
 - `MAT_Portal_Navy`
 
-Production materials currently use the embedded base-color atlas in the runtime GLB. Normal maps, combined occlusion/roughness/metallic maps, and selective emissive maps remain pending. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
+Production materials currently use the embedded base-color atlas in the runtime GLB. The isolated Pass 3 review path supports normal and combined occlusion/roughness/metallic maps; these maps remain pending for the live production asset until validation is complete. Selective emissive maps remain pending. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
 
 Production pass 2 embeds `textures/atrium-material-atlas.png` into the GLB and assigns its four material regions with `KHR_texture_transform`:
 
@@ -146,8 +183,16 @@ The production artist should deliver:
 
 ## Generation
 
-Regenerate production pass 1 from the project root when intentionally updating the GLB or atlas source:
+Regenerate the current production asset from the project root only when intentionally updating the validated Pass 2 GLB or base-color atlas:
 
 ```bash
 node artifacts/orgintel-landing/scripts/generate-atrium-glb.mjs
 ```
+
+Generate the isolated Pass 3 review asset only after adding the two required texture sources:
+
+```bash
+node artifacts/orgintel-landing/scripts/generate-atrium-glb.mjs --pass3-review
+```
+
+The Pass 3 command writes `orgintel-headquarters-atrium-pass3-review.glb`. It never overwrites `orgintel-headquarters-atrium-production.glb`.
