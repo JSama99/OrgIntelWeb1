@@ -404,7 +404,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <button class="interact" id="interactBtn"><span class="key">E</span><span id="interactText">Inspect station</span></button>
 <div class="toast" id="toast" aria-live="polite"></div>
 <div class="cinematic-label" id="cinematicLabel">Cinematic station view</div>
-<div class="asset-credit">V4 · production atrium GLB active</div>
+<div class="asset-credit" id="assetCredit">V3 · procedural fallback · loading production atrium…</div>
 <div class="hint" id="hint">WASD to move · click-drag to look · scroll to zoom · two fingers to look/pinch on touch</div>
 
 <div class="tal" id="tal" aria-live="polite"><span class="who">Tal · your guide</span><span id="talMsg"></span></div>
@@ -592,6 +592,7 @@ const tourProgressCount = $('tourProgressCount'), tourProgressFill = $('tourProg
 const interactBtn = $('interactBtn'), interactText = $('interactText'), crosshairEl = $('crosshair');
 const soundBtn = $('soundBtn'), qualityBtn = $('qualityBtn'), toastEl = $('toast');
 const assetStatus = $('assetStatus'), assetStatusText = $('assetStatusText');
+const assetCredit = document.getElementById('assetCredit');
 const cardClose = $('cardClose'), cinematicLabel = $('cinematicLabel');
 
 let booted = false;
@@ -982,6 +983,7 @@ function boot() {
   }
 
   function prepareProductionAtrium(model) {
+    const noShadowCaster = /Floor|Glass|Light|Emissive|Display|Sign|Path|Ceiling|Wall/i;
     model.name = 'OrgIntelHeadquartersAtriumProduction';
     model.position.set(0, 0, 0);
     model.rotation.set(0, 0, 0);
@@ -989,7 +991,7 @@ function boot() {
     model.traverse((o) => {
       if (o.isMesh) {
         o.receiveShadow = true;
-        o.castShadow = quality.level === 2;
+        o.castShadow = quality.level === 2 && !noShadowCaster.test(o.name);
         if (Array.isArray(o.material)) o.material.forEach(applyTextureAnisotropy);
         else applyTextureAnisotropy(o.material);
       }
@@ -1007,10 +1009,12 @@ function boot() {
       prepareProductionAtrium(model);
       scene.add(model);
       proceduralAtriumFallback.visible = false;
+      assetCredit.textContent = 'V4 · production atrium GLB active';
       assetFinished(true);
     }, undefined, (error) => {
       console.warn('Production atrium GLB failed to load; keeping ProceduralAtriumFallback visible.', error);
       proceduralAtriumFallback.visible = true;
+      assetCredit.textContent = 'V3 · procedural fallback · atrium unavailable';
       assetFinished(false);
     });
 

@@ -30,7 +30,7 @@ const json = {
       forwardAxis: "-Z",
       purpose: "Detailed architecture, authored surface atlas, PBR materials, navigation, and visual review",
       productionPass: 2,
-      liveIntegrationApproved: false,
+      liveIntegrationApproved: true,
     },
   },
   extensionsUsed: [
