@@ -400,6 +400,21 @@
     });
     interceptStationCard();
   }
+  function loadStage9Assets() {
+    if (!document.querySelector("link[data-orgintel-stage9]")) {
+      const stylesheet = document.createElement("link");
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = "./stage9.css";
+      stylesheet.dataset.orgintelStage9 = "true";
+      document.head.appendChild(stylesheet);
+    }
+    if (!document.querySelector("script[data-orgintel-stage9]")) {
+      const script = document.createElement("script");
+      script.src = "./stage9.js";
+      script.dataset.orgintelStage9 = "true";
+      document.body.appendChild(script);
+    }
+  }
   addEventListener(
     "keydown",
     (event) => {
@@ -417,4 +432,5 @@
   );
   window.OrgIntelStage7 = { open, close };
   bootObserver();
+  loadStage9Assets();
 })();
