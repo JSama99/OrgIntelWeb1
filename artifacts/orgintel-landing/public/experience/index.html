@@ -357,6 +357,24 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .ml-btn.gold:hover { background: rgba(255,180,84,0.32); }
 .ml-complete { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 12px 0; }
 .ml-star { font-size: 44px; color: #ffb454; display: block; animation: ml-pulse 2s ease-in-out infinite; }
+
+
+/* ===== Stage 8: Operational Console Lesson Panel ===== */
+.oc-step-list { display:flex; flex-direction:column; gap:10px; }
+.oc-situation { border:1px solid rgba(255,180,84,.32); background:rgba(255,180,84,.08); border-radius:10px; padding:13px 14px; }
+.oc-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.oc-signal, .oc-work, .oc-policy { border:1px solid rgba(31,224,198,.22); background:rgba(31,224,198,.06); border-radius:10px; padding:12px; }
+.oc-signal strong, .oc-work strong, .oc-policy strong { display:block; margin-bottom:4px; color:#e9f1f7; }
+.oc-signal small, .oc-work small, .oc-policy small { color:rgba(188,210,226,.72); line-height:1.45; display:block; }
+.oc-badge { display:inline-flex; align-items:center; margin:4px 6px 4px 0; padding:5px 8px; border-radius:999px; font-size:11px; color:#0a1526; background:#1fe0c6; }
+.oc-badge.gold { background:#ffb454; }
+.oc-flow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; color:#bcd2e2; font-size:12px; }
+.oc-flow span { border:1px solid rgba(31,224,198,.25); border-radius:999px; padding:8px 10px; background:rgba(31,224,198,.06); }
+.oc-sim { height:8px; border-radius:999px; overflow:hidden; background:rgba(233,241,247,.1); margin:10px 0; }
+.oc-sim > i { display:block; width:0%; height:100%; background:linear-gradient(90deg,#1fe0c6,#ffb454); transition:width 1.2s cubic-bezier(.16,1,.3,1); }
+.oc-sim.run > i { width:100%; }
+@media (max-width: 620px) { .oc-grid { grid-template-columns:1fr; } .mem-lesson { width:94vw; max-height:86vh; padding:22px 20px 20px; } }
+
 </style>
 </head>
 <body>
@@ -488,6 +506,28 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
       <button class="ml-btn gold" id="mlDone">Enter the Decision Chamber →</button>
     </div>
   </div>
+</div>
+
+
+
+<!-- Stage 8: Operational Console interactive lesson panel -->
+<div class="mem-lesson" id="ocLesson" style="display:none" role="dialog" aria-label="Operational Console Lesson">
+  <button class="ml-close" id="ocClose" aria-label="Close lesson">✕</button>
+  <span class="ml-room">Final room · Operational Console · Stage 8</span>
+  <div class="ml-step" id="ocStep0"><h3>Operational Console online.</h3><p>You have unlocked the final room. OrgIntel now brings memory, decisions, proof, and Observatory intelligence together so the organization can act.</p><button class="ml-btn" data-oc-next>Receive situation →</button></div>
+  <div class="ml-step" id="ocStep1" style="display:none"><h3>A situation requires action.</h3><div class="oc-situation"><p><strong>Customer expansion risk:</strong> ACME renews in 14 days. Usage is up, support sentiment is down, legal has not approved the new data-processing addendum, and Finance sees a margin risk.</p></div><button class="ml-btn" data-oc-next>Review connected signals →</button></div>
+  <div class="ml-step" id="ocStep2" style="display:none"><h3>Four rooms contribute signal.</h3><div class="oc-grid"><div class="oc-signal"><strong>Memory</strong><small>Past renewal notes, meeting promises, and Slack context are connected.</small></div><div class="oc-signal"><strong>Decision</strong><small>Prior discount rules and tradeoffs explain what leadership approved before.</small></div><div class="oc-signal"><strong>Proof</strong><small>Contract clauses, approvals, and source records are verified.</small></div><div class="oc-signal"><strong>Observatory</strong><small>The account graph shows sentiment, usage, margin, and legal bottlenecks.</small></div></div><button class="ml-btn" data-oc-next>Separate signal from recommendation →</button></div>
+  <div class="ml-step" id="ocStep3" style="display:none"><h3>Signal is not a recommendation.</h3><p><span class="oc-badge">Signal</span> “Legal approval is blocked.” <span class="oc-badge">Signal</span> “Usage grew 38%.”</p><p><span class="oc-badge gold">Recommendation</span> “Offer a smaller expansion contingent on legal approval and executive review.”</p><button class="ml-btn" data-oc-next>Inspect response →</button></div>
+  <div class="ml-step" id="ocStep4" style="display:none"><h3>Recommended organizational response.</h3><p>OrgIntel recommends a coordinated renewal sprint: confirm customer priorities, resolve legal blockers, model the margin impact, prepare an executive-approved offer, and update the account plan.</p><button class="ml-btn" data-oc-next>Assign work →</button></div>
+  <div class="ml-step" id="ocStep5" style="display:none"><h3>Humans lead. Agents execute.</h3><div class="oc-grid"><div class="oc-work"><strong>Human leader</strong><small>Approves strategy, customer promises, pricing exceptions, and risk acceptance.</small></div><div class="oc-work"><strong>AI agents</strong><small>Draft briefs, gather proof, summarize history, model scenarios, and route tasks.</small></div></div><button class="ml-btn" data-oc-next>Define automation →</button></div>
+  <div class="ml-step" id="ocStep6" style="display:none"><h3>Some actions can run automatically.</h3><div class="oc-grid"><div class="oc-policy"><strong>May auto-run</strong><small>Summaries, evidence collection, task creation, reminders, status updates.</small></div><div class="oc-policy"><strong>Needs approval</strong><small>Customer commitments, contract changes, pricing exceptions, external messages.</small></div></div><button class="ml-btn" data-oc-next>Set approval rule →</button></div>
+  <div class="ml-step" id="ocStep7" style="display:none"><h3>Consequential actions require a person.</h3><p>The Console can prepare the customer offer, but it cannot send it or alter contract terms until the accountable leader approves the action and its evidence.</p><button class="ml-btn" data-oc-next>Simulate response →</button></div>
+  <div class="ml-step" id="ocStep8" style="display:none"><h3>Coordinated response in motion.</h3><div class="oc-sim" id="ocSim"><i></i></div><p>Agents gather proof, Legal reviews the addendum, Finance validates margin, Customer Success drafts the plan, and the leader approves the final offer.</p><button class="ml-btn" data-oc-next>See new memory →</button></div>
+  <div class="ml-step" id="ocStep9" style="display:none"><h3>Action creates new memory.</h3><p>The approved plan, rationale, source evidence, owner, timestamp, and outcome are written back into Organizational Memory so the next team starts with context.</p><button class="ml-btn" data-oc-next>Return results to Observatory →</button></div>
+  <div class="ml-step" id="ocStep10" style="display:none"><h3>Results become new intelligence.</h3><p>The Observatory updates the living constellation: risk decreases, legal bottleneck clears, customer health changes, and future recommendations improve.</p><button class="ml-btn" data-oc-next>Understand the loop →</button></div>
+  <div class="ml-step" id="ocStep11" style="display:none"><h3>The complete OrgIntel operating loop.</h3><div class="oc-flow"><span>Signals</span>→<span>Memory</span>→<span>Decisions</span>→<span>Proof</span>→<span>Action</span>→<span>New Intelligence</span></div><p>OrgIntel helps an organization notice what matters, decide with context, prove why, coordinate action, and learn from the result.</p><button class="ml-btn" data-oc-next>Final check →</button></div>
+  <div class="ml-step" id="ocStep12" style="display:none"><h3>Final knowledge check.</h3><p>What should OrgIntel do with a high-impact recommendation?</p><div class="ml-choices" id="ocChoices" style="margin-top:12px"><button class="ml-choice" data-correct="false">Run every recommended action automatically without review</button><button class="ml-choice" data-correct="true">Automate low-risk work, but require human approval for consequential action</button><button class="ml-choice" data-correct="false">Only store the signal and avoid coordinating any response</button></div><p class="ml-feedback" id="ocFeedback" style="display:none"></p></div>
+  <div class="ml-step" id="ocStep13" style="display:none"><div class="ml-complete"><span class="ml-star">✦</span><h3>Headquarters learning journey complete.</h3><p>You have completed Memory Archive → Decision Chamber → Proof Vault → Intelligence Observatory → Operational Console.</p><div class="row" style="justify-content:center"><a class="ml-btn gold" href="https://orgintell.replit.app">Launch OrgIntel</a><button class="ml-btn" id="ocReplayRooms">Replay rooms</button><button class="ml-btn" id="ocRestart">Restart experience</button></div></div></div>
 </div>
 
 <div class="stick" id="stick" aria-hidden="true"><div class="nub" id="stickNub"></div></div>
@@ -1703,6 +1743,29 @@ function boot() {
   $('timeRange').addEventListener('input', (e) => { timeT = (+e.target.value) / 4; });
   timeT = 0.25;
 
+
+  /* ---------------- Stage 8 progression persistence ---------------- */
+  const OC_PROGRESS_KEY = 'orgintel-hq-progress-v1';
+  const ocDefaultProgress = { memoryArchive:false, decisionChamber:false, proofVault:false, observatory:false, operationalConsole:false, journeyComplete:false };
+  let ocProgress = loadOcProgress();
+  function loadOcProgress() {
+    try { return Object.assign({}, ocDefaultProgress, JSON.parse(localStorage.getItem(OC_PROGRESS_KEY) || '{}')); }
+    catch (e) { return Object.assign({}, ocDefaultProgress); }
+  }
+  function saveOcProgress(patch) {
+    ocProgress = Object.assign({}, ocProgress, patch);
+    try { localStorage.setItem(OC_PROGRESS_KEY, JSON.stringify(ocProgress)); } catch (e) {}
+  }
+  function markRoomProgress(name) {
+    if (name === 'Decision Chamber') saveOcProgress({ decisionChamber:true });
+    if (name === 'Proof Vault') saveOcProgress({ proofVault:true });
+    if (name === 'Observatory') saveOcProgress({ observatory:true, observatoryComplete:true });
+  }
+  function priorRoomsComplete() {
+    ocProgress = loadOcProgress();
+    return (ocProgress.memoryArchive || ocProgress.memoryComplete) && (ocProgress.decisionChamber || ocProgress.decisionComplete) && (ocProgress.proofVault || ocProgress.proofComplete || ocProgress.proofUnlocked) && (ocProgress.observatory || ocProgress.observatoryComplete);
+  }
+
   const tour = { on: false, step: -1, waiting: false };
   function showTal(msg) { talMsg.textContent = msg; talEl.classList.add('on'); }
   function hideTal() { talEl.classList.remove('on'); }
@@ -2088,6 +2151,61 @@ function boot() {
     }
 
     return { show, hide, next };
+  })();
+
+
+
+  /* ============================================================
+     Stage 8: Operational Console Interactive Lesson
+     ============================================================ */
+  const operationalConsoleLesson = (function () {
+    const el = document.getElementById('ocLesson');
+    let active = false, step = 0, answerLocked = false;
+    function render() {
+      el.querySelectorAll('.ml-step').forEach((s, i) => { s.style.display = i === step ? '' : 'none'; });
+      const sim = document.getElementById('ocSim');
+      if (sim) sim.classList.toggle('run', step === 8);
+    }
+    function show() {
+      step = loadOcProgress().journeyComplete ? 13 : 0;
+      active = true; answerLocked = false;
+      el.querySelectorAll('.ml-choice').forEach(c => c.classList.remove('correct', 'wrong'));
+      const fb = document.getElementById('ocFeedback');
+      if (fb) fb.style.display = 'none';
+      el.style.display = 'flex';
+      requestAnimationFrame(() => el.classList.add('on'));
+      render();
+    }
+    function hide() {
+      el.classList.remove('on'); active = false;
+      setTimeout(() => { if (!active) el.style.display = 'none'; }, 350);
+    }
+    function next() { step = Math.min(13, step + 1); render(); }
+    el.querySelectorAll('[data-oc-next]').forEach(btn => btn.addEventListener('click', next));
+    document.getElementById('ocClose').addEventListener('click', hide);
+    document.getElementById('ocChoices').addEventListener('click', (e) => {
+      const btn = e.target.closest('.ml-choice');
+      if (!btn || answerLocked) return;
+      const fb = document.getElementById('ocFeedback');
+      if (btn.dataset.correct === 'true') {
+        btn.classList.add('correct');
+        fb.textContent = 'Correct. OrgIntel coordinates action while keeping humans accountable for consequential decisions.';
+        fb.className = 'ml-feedback ok'; fb.style.display = ''; answerLocked = true;
+        saveOcProgress({ operationalConsole:true, journeyComplete:true });
+        showToast('Headquarters journey complete ✦');
+        setTimeout(next, 1300);
+      } else {
+        btn.classList.add('wrong');
+        fb.textContent = 'Try again — the operating loop combines automation with accountable human approval.';
+        fb.className = 'ml-feedback err'; fb.style.display = '';
+      }
+    });
+    document.getElementById('ocReplayRooms').addEventListener('click', () => { hide(); player.position.set(-46, 0, 0); showToast('Replay from the Memory Archive'); });
+    document.getElementById('ocRestart').addEventListener('click', () => {
+      saveOcProgress(Object.assign({}, ocDefaultProgress));
+      dcUnlocked = false; hide(); lobbyEl.classList.remove('gone'); tourBtn.classList.remove('hidden'); showToast('Experience restarted');
+    });
+    return { show, hide };
   })();
 
   function glowDecisionChamber() {
