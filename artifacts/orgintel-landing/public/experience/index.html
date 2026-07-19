@@ -563,6 +563,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/Pass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
@@ -612,13 +613,28 @@ function boot() {
   renderer.setClearColor(0x060d1a, 1);
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.08;
+  renderer.toneMappingExposure = 0.84;
   renderer.physicallyCorrectLights = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x060d1a, 0.0105);
   const camera = new THREE.PerspectiveCamera(54, innerWidth / innerHeight, 0.1, 400);
+
+  // A neutral PMREM environment gives polished stone, metal, and glass
+  // something bounded to reflect without turning the floor into a mirror.
+  try {
+    if (THREE.PMREMGenerator && THREE.RoomEnvironment) {
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+      const roomEnvironment = new THREE.RoomEnvironment();
+      const reflectionTarget = pmremGenerator.fromScene(roomEnvironment, 0.04);
+      scene.environment = reflectionTarget.texture;
+      if (roomEnvironment.dispose) roomEnvironment.dispose();
+      pmremGenerator.dispose();
+    }
+  } catch (error) {
+    console.warn('Reflection environment unavailable; continuing with direct lighting.', error);
+  }
 
   const isMobile = matchMedia('(max-width: 820px)').matches || /Mobi|Android/i.test(navigator.userAgent);
   const quality = { mode: 'auto', level: isMobile ? 1 : 2 };
@@ -630,9 +646,9 @@ function boot() {
     qualityBtn.textContent = quality.level === 2 ? 'Q·H' : quality.level === 1 ? 'Q·M' : 'Q·L';
     qualityBtn.title = quality.level === 2 ? 'High visual quality' : quality.level === 1 ? 'Medium visual quality' : 'Low visual quality';
     if (bloomPass) {
-      bloomPass.strength = quality.level === 2 ? 0.76 : quality.level === 1 ? 0.48 : 0.18;
-      bloomPass.radius = quality.level === 2 ? 0.58 : 0.35;
-      bloomPass.threshold = quality.level === 2 ? 0.36 : 0.48;
+      bloomPass.strength = quality.level === 2 ? 0.34 : quality.level === 1 ? 0.22 : 0.08;
+      bloomPass.radius = quality.level === 2 ? 0.34 : quality.level === 1 ? 0.25 : 0.16;
+      bloomPass.threshold = quality.level === 2 ? 0.72 : quality.level === 1 ? 0.78 : 0.86;
     }
     if (announce) showToast('Visual quality: ' + (quality.level === 2 ? 'high' : quality.level === 1 ? 'medium' : 'low'));
   }
@@ -659,9 +675,9 @@ function boot() {
       composer.addPass(new THREE.RenderPass(scene, camera));
       bloomPass = new THREE.UnrealBloomPass(
         new THREE.Vector2(innerWidth, innerHeight),
-        quality.level === 2 ? .76 : .48,
-        quality.level === 2 ? .58 : .35,
-        quality.level === 2 ? .36 : .48
+        quality.level === 2 ? .34 : quality.level === 1 ? .22 : .08,
+        quality.level === 2 ? .34 : quality.level === 1 ? .25 : .16,
+        quality.level === 2 ? .72 : quality.level === 1 ? .78 : .86
       );
       composer.addPass(bloomPass);
     }
@@ -977,13 +993,47 @@ function boot() {
   }
 
   function applyTextureAnisotropy(material) {
-    const maxAnisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
+    const qualityLimit = quality.level === 2 ? 8 : quality.level === 1 ? 4 : 1;
+    const maxAnisotropy = Math.min(qualityLimit, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
     ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'].forEach((slot) => {
       if (material && material[slot]) {
         material[slot].anisotropy = maxAnisotropy;
         material[slot].needsUpdate = true;
       }
     });
+  }
+
+  function tuneAtriumMaterial(material) {
+    if (!material) return;
+    applyTextureAnisotropy(material);
+    const name = material.name || '';
+    if (/Floor_PolishedNavy/i.test(name)) {
+      material.roughness = Math.max(material.roughness ?? 0, 0.28);
+      material.metalness = Math.min(material.metalness ?? 0, 0.38);
+      material.envMapIntensity = 0.62;
+      if ('clearcoat' in material) material.clearcoat = Math.min(material.clearcoat, 0.48);
+      if ('clearcoatRoughness' in material) material.clearcoatRoughness = Math.max(material.clearcoatRoughness, 0.18);
+    } else if (/Wall_CharcoalStone/i.test(name)) {
+      material.roughness = Math.max(material.roughness ?? 0, 0.62);
+      material.metalness = Math.min(material.metalness ?? 0, 0.08);
+      material.envMapIntensity = 0.24;
+    } else if (/BrushedTitanium/i.test(name)) {
+      material.roughness = Math.max(material.roughness ?? 0, 0.32);
+      material.envMapIntensity = 0.72;
+    } else if (/BlackenedSteel/i.test(name)) {
+      material.roughness = Math.max(material.roughness ?? 0, 0.30);
+      material.envMapIntensity = 0.58;
+    } else if (/Glass_Architectural/i.test(name)) {
+      material.roughness = Math.max(material.roughness ?? 0, 0.12);
+      material.envMapIntensity = 0.82;
+    } else if (/Glass_Frosted/i.test(name)) {
+      material.roughness = Math.max(material.roughness ?? 0, 0.42);
+      material.envMapIntensity = 0.48;
+    }
+    if (/Emissive_Teal/i.test(name)) material.emissiveIntensity = Math.min(material.emissiveIntensity ?? 1, 2.2);
+    if (/Emissive_Gold/i.test(name)) material.emissiveIntensity = Math.min(material.emissiveIntensity ?? 1, 1.8);
+    if (/Emissive_InteriorWarm/i.test(name)) material.emissiveIntensity = Math.min(material.emissiveIntensity ?? 1, 1.35);
+    material.needsUpdate = true;
   }
 
   function prepareProductionAtrium(model) {
@@ -996,8 +1046,8 @@ function boot() {
       if (o.isMesh) {
         o.receiveShadow = true;
         o.castShadow = quality.level === 2 && !noShadowCaster.test(o.name);
-        if (Array.isArray(o.material)) o.material.forEach(applyTextureAnisotropy);
-        else applyTextureAnisotropy(o.material);
+        if (Array.isArray(o.material)) o.material.forEach(tuneAtriumMaterial);
+        else tuneAtriumMaterial(o.material);
       }
       if (o.isLight) {
         o.castShadow = false;
@@ -1049,28 +1099,6 @@ function boot() {
       assetFinished(true);
     }, undefined, () => assetFinished(false));
 
-    modelLoader.load('./models/orgintel-headquarters-atrium-production.glb', (gltf) => {
-      const atrium = gltf.scene;
-      atrium.position.set(0, 0, 0);
-      atrium.traverse((o) => {
-        if (o.isMesh) {
-          o.castShadow = quality.level > 0;
-          o.receiveShadow = true;
-          // Preserve GLB-authored materials; only fill in missing PBR fields.
-          if (o.material) {
-            if (o.material.roughness === undefined) o.material.roughness = 0.48;
-            if (o.material.metalness === undefined) o.material.metalness = 0.12;
-          }
-        }
-      });
-      scene.add(atrium);
-      // Replace the procedural environment with the production atrium shell.
-      proceduralEnv.visible = false;
-      assetFinished(true);
-    }, undefined, () => {
-      // Atrium failed to load — keep procedural environment visible as fallback.
-      assetFinished(false);
-    });
   } else {
     assetFinished(false); assetFinished(false); assetFinished(false); assetFinished(false);
   }
