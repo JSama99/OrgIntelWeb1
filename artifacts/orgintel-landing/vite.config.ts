@@ -181,6 +181,19 @@ function transformExperienceHtml(source: string): string {
       cardEl.classList.add('on');
       showToast('Proof Vault locked · complete Room two');
       return;
+    }
+    markRoomProgress(s.name);
+    if (s.name === 'The Console') {
+      if (!priorRoomsComplete()) {
+        cardBody.textContent = 'The Console unlocks after Memory Archive, Decision Chamber, Proof Vault, and Intelligence Observatory are complete. Replay the rooms or inspect each room to refresh your progress.';
+        cardClose.style.display = 'grid';
+        cardEl.classList.add('on');
+        showToast('Operational Console is still gated');
+        return;
+      }
+      cardEl.classList.remove('on');
+      operationalConsoleLesson.show();
+      return;
     }`,
     'room progression gates',
   );
@@ -188,7 +201,7 @@ function transformExperienceHtml(source: string): string {
   html = replaceOnce(
     html,
     `    if (e.target.closest('.card, .pill, .tal, .timebar')) return;`,
-    `    if (e.target.closest('.card, .pill, .tal, .timebar, .decision-lesson, .proof-lesson, .observatory-lesson')) return;`,
+    `    if (e.target.closest('.card, .pill, .tal, .timebar, .decision-lesson, .proof-lesson, .observatory-lesson, .mem-lesson')) return;`,
     'mobile lesson touch isolation',
   );
 
