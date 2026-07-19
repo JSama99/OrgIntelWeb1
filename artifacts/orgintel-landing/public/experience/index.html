@@ -699,13 +699,17 @@ function boot() {
   // Room bounds: x in [-70, 70], z in [-72, 38]
   const BX = 66, BZ_N = -68, BZ_S = 34;
 
+  // Procedural environment group — hidden when the atrium GLB loads successfully.
+  const proceduralEnv = new THREE.Group();
+  scene.add(proceduralEnv);
+
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(220, 180),
     new THREE.MeshStandardMaterial({ color: 0x07111f, roughness: 0.22, metalness: 0.72 })
   );
   floor.rotateX(-Math.PI / 2);
   floor.receiveShadow = true;
-  scene.add(floor);
+  proceduralEnv.add(floor);
 
   // Layered central dais gives the hall a stronger architectural anchor.
   const daisMat = new THREE.MeshStandardMaterial({ color: 0x0a1829, roughness: 0.25, metalness: 0.78 });
@@ -740,7 +744,7 @@ function boot() {
   function pillar(x, z) {
     const p = new THREE.Mesh(pillarGeo, pillarMat);
     p.position.set(x, 9, z);
-    scene.add(p);
+    proceduralEnv.add(p);
   }
   for (let x = -BX; x <= BX; x += 22) { pillar(x, BZ_N - 4); pillar(x, BZ_S + 4); }
   for (let z = BZ_N - 4; z <= BZ_S + 4; z += 17) { pillar(-BX - 4, z); pillar(BX + 4, z); }
@@ -750,7 +754,7 @@ function boot() {
       new THREE.MeshBasicMaterial({ color: 0x1fe0c6, transparent: true, opacity: 0.5 })
     );
     c.position.set(x, 18.2, z);
-    scene.add(c);
+    proceduralEnv.add(c);
   }
   cornice((BX + 4) * 2 + 2, 0.4, 0, BZ_N - 4);
   cornice((BX + 4) * 2 + 2, 0.4, 0, BZ_S + 4);
@@ -776,7 +780,7 @@ function boot() {
   ceilingDisk.position.y = 21.2;
   ceiling.add(ceilingDisk);
   ceiling.position.z = 8;
-  scene.add(ceiling);
+  proceduralEnv.add(ceiling);
 
   // Suspended downlights.
   for (let i = 0; i < 12; i++) {
@@ -792,14 +796,14 @@ function boot() {
     const w = 2.2 + Math.random() * 4.5, h = 5 + Math.random() * 18, d = 2.5 + Math.random() * 5;
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skylineMat);
     b.position.set(-72 + i * 4.3, h / 2, -84 - Math.random() * 10);
-    scene.add(b);
+    proceduralEnv.add(b);
     if (quality.level > 0) {
       const cap = new THREE.Mesh(
         new THREE.BoxGeometry(Math.max(.3, w * .08), Math.max(.5, h * .7), d + .05),
         new THREE.MeshBasicMaterial({ color:0x1fe0c6, transparent:true, opacity:.08 + Math.random() * .16 })
       );
       cap.position.set(b.position.x + w * .22, b.position.y, b.position.z + d * .51);
-      scene.add(cap);
+      proceduralEnv.add(cap);
     }
   }
 
@@ -940,7 +944,7 @@ function boot() {
   scene.add(holoLamp);
 
   /* ---------------- V3 local GLB asset pipeline ---------------- */
-  const assetAttempts = { total: 3, done: 0, loaded: 0 };
+  const assetAttempts = { total: 4, done: 0, loaded: 0 };
   function assetFinished(ok) {
     assetAttempts.done++;
     if (ok) assetAttempts.loaded++;
@@ -997,8 +1001,31 @@ function boot() {
       holoCore.visible = false;
       assetFinished(true);
     }, undefined, () => assetFinished(false));
+
+    modelLoader.load('./models/orgintel-headquarters-atrium-production.glb', (gltf) => {
+      const atrium = gltf.scene;
+      atrium.position.set(0, 0, 0);
+      atrium.traverse((o) => {
+        if (o.isMesh) {
+          o.castShadow = quality.level > 0;
+          o.receiveShadow = true;
+          // Preserve GLB-authored materials; only fill in missing PBR fields.
+          if (o.material) {
+            if (o.material.roughness === undefined) o.material.roughness = 0.48;
+            if (o.material.metalness === undefined) o.material.metalness = 0.12;
+          }
+        }
+      });
+      scene.add(atrium);
+      // Replace the procedural environment with the production atrium shell.
+      proceduralEnv.visible = false;
+      assetFinished(true);
+    }, undefined, () => {
+      // Atrium failed to load — keep procedural environment visible as fallback.
+      assetFinished(false);
+    });
   } else {
-    assetFinished(false); assetFinished(false); assetFinished(false);
+    assetFinished(false); assetFinished(false); assetFinished(false); assetFinished(false);
   }
 
 
