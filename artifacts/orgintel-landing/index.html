@@ -78,11 +78,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   }
 }
 
-/* Reveal initial state applied only when JS is running */
-.js .reveal { opacity: 0; transform: translateY(34px); }
-@media (prefers-reduced-motion: reduce) {
-  .js .reveal { opacity: 1; transform: none; }
-}
+/* Reveal — content is visible by default; GSAP animates FROM hidden on scroll */
+/* No CSS hiding here: progressive enhancement means content shows without JS */
 
 /* ============================================================
    Custom cursor
@@ -1396,26 +1393,29 @@ function scramble(el, finalText, speed, done) {
    Motion layer — GSAP
    ============================================================ */
 if (MOTION) {
-  // Hero mask reveal
-  gsap.set('h1 .inner', { yPercent: 115 });
-  gsap.to('h1 .inner', {
-    yPercent: 0, duration: 1.1, ease: 'power4.out', stagger: 0.12, delay: 0.15,
+  // Hero entrance — content stays visible, GSAP adds polish
+  gsap.from('h1 .inner', {
+    yPercent: 115, duration: 1.1, ease: 'power4.out', stagger: 0.12, delay: 0.15,
+    immediateRender: false,
   });
   gsap.from('.eyebrow, .hero-sub, .hero-ctas, .hero-note', {
     opacity: 0, y: 18, duration: 0.9, ease: 'power3.out', stagger: 0.09, delay: 0.55,
+    immediateRender: false,
   });
-  gsap.fromTo('.wv',
-    { opacity: 0, y: 40, scale: 0.97 },
-    { opacity: 1, y: 0, scale: 1, duration: 1.1, ease: 'power3.out', delay: 0.7 }
+  gsap.from('.wv',
+    { opacity: 0, y: 40, scale: 0.97, duration: 1.1, ease: 'power3.out', delay: 0.7,
+      immediateRender: false }
   );
 
-  // Scroll reveals (skip .wv — handled above)
+  // Scroll reveals — content is always visible; subtle translate-only on scroll
   gsap.utils.toArray('.reveal').forEach((el) => {
     if (el.classList.contains('wv')) return;
-    gsap.to(el, {
-      opacity: 1, y: 0, duration: 0.9, ease: 'power3.out',
-      scrollTrigger: { trigger: el, start: 'top 88%' },
-    });
+    gsap.fromTo(el,
+      { y: 22 },
+      { y: 0, duration: 0.8, ease: 'power3.out',
+        immediateRender: false,
+        scrollTrigger: { trigger: el, start: 'top 94%', once: true } }
+    );
   });
 
   // Count-up stats
