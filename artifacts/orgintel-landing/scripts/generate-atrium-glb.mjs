@@ -3,34 +3,47 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const pass3Review = process.argv.includes("--pass3-review");
 const output = path.join(
   root,
   "public",
   "experience",
   "models",
-  "orgintel-headquarters-atrium-production.glb",
+  pass3Review
+    ? "orgintel-headquarters-atrium-pass3-review.glb"
+    : "orgintel-headquarters-atrium-production.glb",
 );
-const materialAtlas = path.join(
+const textureDirectory = path.join(
   root,
   "public",
   "experience",
   "models",
   "textures",
-  "atrium-material-atlas.png",
 );
+const materialAtlas = path.join(textureDirectory, "atrium-material-atlas.png");
+const normalAtlas = path.join(textureDirectory, "atrium-normal-atlas.png");
+const ormAtlas = path.join(textureDirectory, "atrium-orm-atlas.png");
 
 const json = {
   asset: {
     version: "2.0",
-    generator: "OrgIntel Atrium Production Generator 3.0",
+    generator: `OrgIntel Atrium Production Generator ${pass3Review ? "4.0-review" : "3.0"}`,
     extras: {
-      title: "OrgIntel Headquarters Atrium Environment — Realism Pass 2",
+      title: `OrgIntel Headquarters Atrium Environment — Realism Pass ${pass3Review ? 3 : 2}`,
       unitMeters: 1,
       upAxis: "Y",
       forwardAxis: "-Z",
-      purpose: "Detailed architecture, authored surface atlas, PBR materials, navigation, and visual review",
-      productionPass: 2,
-      liveIntegrationApproved: true,
+      purpose: pass3Review
+        ? "Isolated review asset for normal and occlusion/roughness/metallic surface maps"
+        : "Detailed architecture, authored surface atlas, PBR materials, navigation, and visual review",
+      productionPass: pass3Review ? 3 : 2,
+      liveIntegrationApproved: !pass3Review,
+      ...(pass3Review
+        ? {
+            textureProfile: "base-color + tangent-space normal + ORM",
+            liveProductionAssetUnchanged: true,
+          }
+        : {}),
     },
   },
   extensionsUsed: [
@@ -49,7 +62,15 @@ const json = {
   materials: [],
   images: [],
   samplers: [{ name: "SAMPLER_AtlasClamp", magFilter: 9729, minFilter: 9987, wrapS: 33071, wrapT: 33071 }],
-  textures: [{ name: "TEX_OrgIntelAtriumMaterialAtlas", sampler: 0, source: 0 }],
+  textures: [
+    { name: "TEX_OrgIntelAtriumMaterialAtlas", sampler: 0, source: 0 },
+    ...(pass3Review
+      ? [
+          { name: "TEX_OrgIntelAtriumNormalAtlas", sampler: 0, source: 1 },
+          { name: "TEX_OrgIntelAtriumORMAtlas", sampler: 0, source: 2 },
+        ]
+      : []),
+  ],
   accessors: [],
   bufferViews: [],
   buffers: [],
@@ -101,12 +122,75 @@ function addAccessor(typedArray, componentType, type, target, includeBounds = fa
   return index;
 }
 
+function tangentGeometry(geometry) {
+  const vertexCount = geometry.positions.length / 3;
+  const tangentU = Array.from({ length: vertexCount }, () => [0, 0, 0]);
+  const tangentV = Array.from({ length: vertexCount }, () => [0, 0, 0]);
+  const add = (target, x, y, z) => {
+    target[0] += x;
+    target[1] += y;
+    target[2] += z;
+  };
+
+  for (let index = 0; index < geometry.indices.length; index += 3) {
+    const i0 = geometry.indices[index];
+    const i1 = geometry.indices[index + 1];
+    const i2 = geometry.indices[index + 2];
+    const p0 = geometry.positions.slice(i0 * 3, i0 * 3 + 3);
+    const p1 = geometry.positions.slice(i1 * 3, i1 * 3 + 3);
+    const p2 = geometry.positions.slice(i2 * 3, i2 * 3 + 3);
+    const uv0 = geometry.uvs.slice(i0 * 2, i0 * 2 + 2);
+    const uv1 = geometry.uvs.slice(i1 * 2, i1 * 2 + 2);
+    const uv2 = geometry.uvs.slice(i2 * 2, i2 * 2 + 2);
+    const edge1 = p1.map((value, axis) => value - p0[axis]);
+    const edge2 = p2.map((value, axis) => value - p0[axis]);
+    const du1 = uv1[0] - uv0[0];
+    const dv1 = uv1[1] - uv0[1];
+    const du2 = uv2[0] - uv0[0];
+    const dv2 = uv2[1] - uv0[1];
+    const determinant = du1 * dv2 - du2 * dv1;
+    if (Math.abs(determinant) < 1e-8) continue;
+    const reciprocal = 1 / determinant;
+    const u = edge1.map((value, axis) => (value * dv2 - edge2[axis] * dv1) * reciprocal);
+    const v = edge1.map((value, axis) => (edge2[axis] * du1 - value * du2) * reciprocal);
+    for (const vertex of [i0, i1, i2]) {
+      add(tangentU[vertex], ...u);
+      add(tangentV[vertex], ...v);
+    }
+  }
+
+  const tangents = [];
+  for (let vertex = 0; vertex < vertexCount; vertex += 1) {
+    const normal = geometry.normals.slice(vertex * 3, vertex * 3 + 3);
+    const source = tangentU[vertex];
+    const projection = normal[0] * source[0] + normal[1] * source[1] + normal[2] * source[2];
+    const tangent = source.map((value, axis) => value - normal[axis] * projection);
+    const length = Math.hypot(...tangent);
+    const normalized = length > 1e-8
+      ? tangent.map((value) => value / length)
+      : Math.abs(normal[1]) < .999 ? [normal[2], 0, -normal[0]] : [1, 0, 0];
+    const cross = [
+      normal[1] * normalized[2] - normal[2] * normalized[1],
+      normal[2] * normalized[0] - normal[0] * normalized[2],
+      normal[0] * normalized[1] - normal[1] * normalized[0],
+    ];
+    const handedness = cross[0] * tangentV[vertex][0]
+      + cross[1] * tangentV[vertex][1]
+      + cross[2] * tangentV[vertex][2] < 0 ? -1 : 1;
+    tangents.push(...normalized, handedness);
+  }
+  return tangents;
+}
+
 function registerGeometry(name, geometry, includeUv = true) {
   return {
     name,
     position: addAccessor(new Float32Array(geometry.positions), 5126, "VEC3", 34962, true),
     normal: addAccessor(new Float32Array(geometry.normals), 5126, "VEC3", 34962),
     uv: includeUv ? addAccessor(new Float32Array(geometry.uvs), 5126, "VEC2", 34962) : undefined,
+    tangent: pass3Review && includeUv
+      ? addAccessor(new Float32Array(tangentGeometry(geometry)), 5126, "VEC4", 34962)
+      : undefined,
     indices: addAccessor(new Uint16Array(geometry.indices), 5123, "SCALAR", 34963),
   };
 }
@@ -203,6 +287,20 @@ function torusGeometry(majorSegments = 48, minorSegments = 10) {
   return { positions, normals, uvs, indices };
 }
 
+function atlasTextureInfo(index, atlas, extras = {}) {
+  return {
+    index,
+    texCoord: 0,
+    ...extras,
+    extensions: {
+      KHR_texture_transform: {
+        offset: atlas.offset,
+        scale: atlas.scale,
+      },
+    },
+  };
+}
+
 function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], options = {}) {
   const value = {
     name,
@@ -210,16 +308,16 @@ function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], op
     emissiveFactor: emissive,
   };
   if (options.atlas) {
-    value.pbrMetallicRoughness.baseColorTexture = {
-      index: 0,
-      texCoord: 0,
-      extensions: {
-        KHR_texture_transform: {
-          offset: options.atlas.offset,
-          scale: options.atlas.scale,
-        },
-      },
-    };
+    value.pbrMetallicRoughness.baseColorTexture = atlasTextureInfo(0, options.atlas);
+    if (pass3Review) {
+      value.normalTexture = atlasTextureInfo(1, options.atlas, {
+        scale: options.normalScale ?? .35,
+      });
+      value.pbrMetallicRoughness.metallicRoughnessTexture = atlasTextureInfo(2, options.atlas);
+      value.occlusionTexture = atlasTextureInfo(2, options.atlas, {
+        strength: options.occlusionStrength ?? .65,
+      });
+    }
   }
   if (options.alphaMode) {
     value.alphaMode = options.alphaMode;
@@ -246,12 +344,12 @@ function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], op
 }
 
 const materials = {
-  floor: material("MAT_Floor_PolishedNavy", [.72, .82, .96, 1], .78, .13, [0, 0, 0], { clearcoat: .72, clearcoatRoughness: .09, atlas: { offset: [.002, .002], scale: [.496, .496] } }),
+  floor: material("MAT_Floor_PolishedNavy", [.72, .82, .96, 1], .78, .13, [0, 0, 0], { clearcoat: .72, clearcoatRoughness: .09, normalScale: .22, occlusionStrength: .42, atlas: { offset: [.002, .002], scale: [.496, .496] } }),
   structure: material("MAT_Structure_BlueBlackMetal", [0.025, 0.065, 0.105, 1], .78, .27),
   secondary: material("MAT_Secondary_Gunmetal", [0.055, 0.095, 0.13, 1], .68, .32),
-  blackMetal: material("MAT_BlackenedSteel", [.62, .68, .76, 1], .92, .2, [0, 0, 0], { atlas: { offset: [.502, .502], scale: [.496, .496] } }),
-  brushedMetal: material("MAT_BrushedTitanium", [.78, .82, .86, 1], .88, .24, [0, 0, 0], { atlas: { offset: [.002, .502], scale: [.496, .496] } }),
-  wallStone: material("MAT_Wall_CharcoalStone", [.58, .6, .64, 1], .12, .58, [0, 0, 0], { atlas: { offset: [.502, .002], scale: [.496, .496] } }),
+  blackMetal: material("MAT_BlackenedSteel", [.62, .68, .76, 1], .92, .2, [0, 0, 0], { normalScale: .3, occlusionStrength: .5, atlas: { offset: [.502, .502], scale: [.496, .496] } }),
+  brushedMetal: material("MAT_BrushedTitanium", [.78, .82, .86, 1], .88, .24, [0, 0, 0], { normalScale: .46, occlusionStrength: .38, atlas: { offset: [.002, .502], scale: [.496, .496] } }),
+  wallStone: material("MAT_Wall_CharcoalStone", [.58, .6, .64, 1], .12, .58, [0, 0, 0], { normalScale: .58, occlusionStrength: .78, atlas: { offset: [.502, .002], scale: [.496, .496] } }),
   glass: material("MAT_Glass_Architectural", [0.018, .09, .12, .3], .05, .06, [0, .018, .025], { alphaMode: "BLEND", transmission: .82, ior: 1.48, clearcoat: .85, clearcoatRoughness: .04 }),
   glassFrosted: material("MAT_Glass_Frosted", [.055, .14, .17, .58], .03, .38, [0, .012, .018], { alphaMode: "BLEND", transmission: .32, ior: 1.46 }),
   teal: material("MAT_Emissive_Teal", [0.005, .16, .19, 1], .28, .19, [0.02, .62, .72], { emissiveStrength: 4.2 }),
@@ -275,9 +373,14 @@ function meshFor(geometryName, materialIndex) {
   if (meshCache.has(key)) return meshCache.get(key);
   const geometry = geometries[geometryName];
   const attributes = { POSITION: geometry.position, NORMAL: geometry.normal };
-  if (json.materials[materialIndex].pbrMetallicRoughness.baseColorTexture) {
+  if (
+    json.materials[materialIndex].pbrMetallicRoughness.baseColorTexture
+    || json.materials[materialIndex].normalTexture
+    || json.materials[materialIndex].occlusionTexture
+  ) {
     attributes.TEXCOORD_0 = geometry.uv;
   }
+  if (json.materials[materialIndex].normalTexture) attributes.TANGENT = geometry.tangent;
   const index = json.meshes.length;
   json.meshes.push({
     name: `${geometry.name}_${json.materials[materialIndex].name}`,
@@ -501,6 +604,35 @@ json.images.push({
   mimeType: "image/png",
   bufferView: atlasBufferView,
 });
+
+if (pass3Review) {
+  let normalBytes;
+  let ormBytes;
+  try {
+    [normalBytes, ormBytes] = await Promise.all([
+      readFile(normalAtlas),
+      readFile(ormAtlas),
+    ]);
+  } catch (error) {
+    throw new Error(
+      `Pass 3 review generation requires ${path.basename(normalAtlas)} and ${path.basename(ormAtlas)}. `
+      + "The live Pass 2 GLB was not modified.",
+      { cause: error },
+    );
+  }
+  const normalBufferView = appendBytes(normalBytes);
+  json.images.push({
+    name: "IMG_OrgIntelAtriumNormalAtlas",
+    mimeType: "image/png",
+    bufferView: normalBufferView,
+  });
+  const ormBufferView = appendBytes(ormBytes);
+  json.images.push({
+    name: "IMG_OrgIntelAtriumORMAtlas",
+    mimeType: "image/png",
+    bufferView: ormBufferView,
+  });
+}
 
 const binary = Buffer.concat(chunks);
 const binaryPadding = align4(binary.length) - binary.length;
