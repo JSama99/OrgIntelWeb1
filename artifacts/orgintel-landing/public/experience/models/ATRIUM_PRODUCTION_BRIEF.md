@@ -2,9 +2,24 @@
 
 ## Graybox production brief
 
-This directory contains `orgintel-headquarters-atrium-graybox.glb`, the scale and layout reference for the production atrium environment.
+This directory contains two review assets:
 
-The graybox is not final visual art. It establishes navigation clearances, architectural scale, room placement, naming, materials, and the boundary between the environment and the existing interactive room systems.
+- `orgintel-headquarters-atrium-graybox.glb` — locked scale and layout reference.
+- `orgintel-headquarters-atrium-production.glb` — production pass 1 with detailed architecture and expanded PBR material families.
+
+The graybox establishes navigation clearances, scale, and room placement. Production pass 1 adds two occupied balcony levels, office bays, architectural glass, stairs, floor inlays, ceiling coffers, portal depth, central-core detailing, practical fixtures, and environmental dressing. It remains a review asset and is not connected to the live experience.
+
+## Production pass 1 status
+
+- Architectural detail: implemented
+- PBR material separation: implemented
+- Architectural glass extensions: implemented
+- Office depth and warm practical-light surfaces: implemented
+- Furniture and planting silhouettes: implemented
+- Authored texture maps: pending
+- Baked lightmaps and reflection probes: pending
+- Desktop/mobile LODs and compression: pending
+- Live experience integration: intentionally pending
 
 ## Coordinate system
 
@@ -45,14 +60,22 @@ Required architectural systems:
 
 ## Material families
 
-The graybox defines seven material families:
+Production pass 1 defines expanded material families, including:
 
 - `MAT_Floor_PolishedNavy`
 - `MAT_Structure_BlueBlackMetal`
 - `MAT_Secondary_Gunmetal`
-- `MAT_Glass_Graybox`
+- `MAT_BlackenedSteel`
+- `MAT_BrushedTitanium`
+- `MAT_Wall_CharcoalStone`
+- `MAT_Glass_Architectural`
+- `MAT_Glass_Frosted`
 - `MAT_Emissive_Teal`
 - `MAT_Emissive_Gold`
+- `MAT_Emissive_InteriorWarm`
+- `MAT_Display_BlueBlack`
+- `MAT_Upholstery_DeepTeal`
+- `MAT_Foliage_DeepGreen`
 - `MAT_Portal_Navy`
 
 Production materials should use glTF-compatible PBR maps. Prominent surfaces should receive base color, roughness, metallic, normal, ambient-occlusion, and selective emissive maps. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
@@ -99,7 +122,7 @@ The production artist should deliver:
 
 ## Generation
 
-Regenerate the graybox from the project root:
+Regenerate production pass 1 from the project root:
 
 ```bash
 node artifacts/orgintel-landing/scripts/generate-atrium-glb.mjs

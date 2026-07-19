@@ -8,22 +8,29 @@ const output = path.join(
   "public",
   "experience",
   "models",
-  "orgintel-headquarters-atrium-graybox.glb",
+  "orgintel-headquarters-atrium-production.glb",
 );
 
 const json = {
   asset: {
     version: "2.0",
-    generator: "OrgIntel Atrium Graybox Generator 1.0",
+    generator: "OrgIntel Atrium Production Generator 2.0",
     extras: {
-      title: "OrgIntel Headquarters Atrium Environment — Graybox",
+      title: "OrgIntel Headquarters Atrium Environment — Production Pass 1",
       unitMeters: 1,
       upAxis: "Y",
       forwardAxis: "-Z",
-      purpose: "Scale, navigation, portal alignment, and production handoff",
-      notFinalArt: true,
+      purpose: "Detailed architecture, PBR material families, navigation, and visual review",
+      productionPass: 1,
+      liveIntegrationApproved: false,
     },
   },
+  extensionsUsed: [
+    "KHR_materials_clearcoat",
+    "KHR_materials_emissive_strength",
+    "KHR_materials_ior",
+    "KHR_materials_transmission",
+  ],
   scene: 0,
   scenes: [{ name: "OrgIntel Headquarters Atrium", nodes: [] }],
   nodes: [],
@@ -175,27 +182,51 @@ function torusGeometry(majorSegments = 48, minorSegments = 10) {
   return { positions, normals, indices };
 }
 
-function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], alphaMode) {
+function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], options = {}) {
   const value = {
     name,
     pbrMetallicRoughness: { baseColorFactor: baseColor, metallicFactor: metallic, roughnessFactor: roughness },
     emissiveFactor: emissive,
   };
-  if (alphaMode) {
-    value.alphaMode = alphaMode;
+  if (options.alphaMode) {
+    value.alphaMode = options.alphaMode;
     value.doubleSided = true;
+  }
+  if (options.clearcoat) {
+    value.extensions ??= {};
+    value.extensions.KHR_materials_clearcoat = {
+      clearcoatFactor: options.clearcoat,
+      clearcoatRoughnessFactor: options.clearcoatRoughness ?? .16,
+    };
+  }
+  if (options.transmission) {
+    value.extensions ??= {};
+    value.extensions.KHR_materials_transmission = { transmissionFactor: options.transmission };
+    value.extensions.KHR_materials_ior = { ior: options.ior ?? 1.5 };
+  }
+  if (options.emissiveStrength) {
+    value.extensions ??= {};
+    value.extensions.KHR_materials_emissive_strength = { emissiveStrength: options.emissiveStrength };
   }
   json.materials.push(value);
   return json.materials.length - 1;
 }
 
 const materials = {
-  floor: material("MAT_Floor_PolishedNavy", [0.018, 0.045, 0.075, 1], .86, .17),
+  floor: material("MAT_Floor_PolishedNavy", [0.012, 0.028, 0.05, 1], .78, .13, [0, 0, 0], { clearcoat: .72, clearcoatRoughness: .09 }),
   structure: material("MAT_Structure_BlueBlackMetal", [0.025, 0.065, 0.105, 1], .78, .27),
   secondary: material("MAT_Secondary_Gunmetal", [0.055, 0.095, 0.13, 1], .68, .32),
-  glass: material("MAT_Glass_Graybox", [0.035, 0.18, 0.24, .24], .15, .08, [0.01, .06, .08], "BLEND"),
-  teal: material("MAT_Emissive_Teal", [0.01, .3, .34, 1], .35, .24, [0.05, .8, .75]),
-  gold: material("MAT_Emissive_Gold", [.55, .28, .06, 1], .64, .23, [1, .42, .08]),
+  blackMetal: material("MAT_BlackenedSteel", [.008, .014, .021, 1], .92, .2),
+  brushedMetal: material("MAT_BrushedTitanium", [.18, .22, .25, 1], .88, .24),
+  wallStone: material("MAT_Wall_CharcoalStone", [.035, .043, .052, 1], .12, .58),
+  glass: material("MAT_Glass_Architectural", [0.018, .09, .12, .3], .05, .06, [0, .018, .025], { alphaMode: "BLEND", transmission: .82, ior: 1.48, clearcoat: .85, clearcoatRoughness: .04 }),
+  glassFrosted: material("MAT_Glass_Frosted", [.055, .14, .17, .58], .03, .38, [0, .012, .018], { alphaMode: "BLEND", transmission: .32, ior: 1.46 }),
+  teal: material("MAT_Emissive_Teal", [0.005, .16, .19, 1], .28, .19, [0.02, .62, .72], { emissiveStrength: 4.2 }),
+  gold: material("MAT_Emissive_Gold", [.38, .17, .025, 1], .58, .2, [.9, .3, .035], { emissiveStrength: 3.4 }),
+  warm: material("MAT_Emissive_InteriorWarm", [.2, .105, .035, 1], .12, .42, [.85, .34, .08], { emissiveStrength: 2.2 }),
+  display: material("MAT_Display_BlueBlack", [.006, .035, .055, 1], .38, .18, [.01, .12, .19], { emissiveStrength: 1.8, clearcoat: .4 }),
+  upholstery: material("MAT_Upholstery_DeepTeal", [.018, .095, .105, 1], .02, .76),
+  foliage: material("MAT_Foliage_DeepGreen", [.012, .11, .08, 1], .01, .72),
   portal: material("MAT_Portal_Navy", [.025, .085, .14, 1], .72, .25, [0, .05, .08]),
 };
 
@@ -254,21 +285,75 @@ function addPortal(id, label, position, yaw, accent) {
   addBox(`PORTAL_${id}_LightLeft`, materialIndex, [left[0], 4.4, left[2]], [.12, 7.5, 1.02], yaw);
   addBox(`PORTAL_${id}_LightRight`, materialIndex, [right[0], 4.4, right[2]], [.12, 7.5, 1.02], yaw);
   addBox(`PORTAL_${id}_Sign`, materialIndex, [x, 8.45, z], [6.4, .16, 1.05], yaw, { roomId: id, roomLabel: label, signageReserved: true });
+  addBox(`PORTAL_${id}_Recess`, materials.blackMetal, [x, 4.1, z], [8.2, 7.2, .42], yaw);
+  addBox(`PORTAL_${id}_Glass`, materials.glassFrosted, [x, 4.05, z], [7.5, 6.7, .24], yaw);
+  addBox(`PORTAL_${id}_Threshold`, materials.brushedMetal, [x, .1, z], [10.4, .2, 2.4], yaw);
+  for (const rib of [-3.4, 0, 3.4]) {
+    const point = local(rib, .28);
+    addBox(`PORTAL_${id}_Rib_${rib}`, materials.brushedMetal, [point[0], 4.1, point[2]], [.09, 7.1, .22], yaw);
+  }
+}
+
+function addStairFlight(id, origin, direction = 1) {
+  const [x, y, z] = origin;
+  const steps = 18;
+  for (let step = 0; step < steps; step += 1) {
+    const rise = (step + 1) * .36;
+    const run = step * .66 * direction;
+    addBox(`STAIR_${id}_Step_${String(step + 1).padStart(2, "0")}`, materials.wallStone, [x, y + rise / 2, z + run], [7.2, rise, .72]);
+  }
+  addBox(`STAIR_${id}_RailLeft`, materials.brushedMetal, [x - 3.5, y + 3.7, z + 5.6 * direction], [.09, 1.1, 12], 0);
+  addBox(`STAIR_${id}_RailRight`, materials.brushedMetal, [x + 3.5, y + 3.7, z + 5.6 * direction], [.09, 1.1, 12], 0);
+}
+
+function addOfficeBay(id, x, y, z, yaw = 0) {
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const local = (lx, lz) => [x + lx * cos + lz * sin, z - lx * sin + lz * cos];
+  const glass = local(0, 0);
+  const ceiling = local(0, .8);
+  const light = local(0, 1.1);
+  const desk = local(0, 1.4);
+  const display = local(0, 2.1);
+  addBox(`OFFICE_${id}_Glass`, materials.glass, [glass[0], y + 2.1, glass[1]], [10.5, 4.1, .16], yaw);
+  addBox(`OFFICE_${id}_Ceiling`, materials.wallStone, [ceiling[0], y + 4.35, ceiling[1]], [10.8, .22, 4.6], yaw);
+  addBox(`OFFICE_${id}_WarmLight`, materials.warm, [light[0], y + 4.18, light[1]], [6.8, .045, 1.4], yaw);
+  for (const mullion of [-5.2, 0, 5.2]) {
+    const point = local(mullion, -.05);
+    addBox(`OFFICE_${id}_Mullion_${mullion}`, materials.blackMetal, [point[0], y + 2.1, point[1]], [.1, 4.3, .22], yaw);
+  }
+  addBox(`OFFICE_${id}_Desk`, materials.secondary, [desk[0], y + .8, desk[1]], [4.8, .16, 1.4], yaw);
+  addBox(`OFFICE_${id}_Display`, materials.display, [display[0], y + 2.25, display[1]], [3.6, 1.65, .08], yaw);
 }
 
 // Primary architectural shell — 140 m × 150 m × 24 m.
 addBox("ATRIUM_Floor", materials.floor, [0, -.18, -6], [140, .36, 150], 0, { walkable: true });
-addBox("ATRIUM_BackWall", materials.structure, [0, 10, -79], [140, 20, 1.2]);
-addBox("ATRIUM_LeftWall", materials.structure, [-69.4, 10, -7], [1.2, 20, 144]);
-addBox("ATRIUM_RightWall", materials.structure, [69.4, 10, -7], [1.2, 20, 144]);
+addBox("ATRIUM_BackWall", materials.wallStone, [0, 10, -79], [140, 20, 1.2]);
+addBox("ATRIUM_LeftWall", materials.wallStone, [-69.4, 10, -7], [1.2, 20, 144]);
+addBox("ATRIUM_RightWall", materials.wallStone, [69.4, 10, -7], [1.2, 20, 144]);
 
-// Multi-level balconies and glass rails.
-addBox("BALCONY_Left_Deck", materials.secondary, [-59, 8.8, -8], [18, .65, 130]);
-addBox("BALCONY_Right_Deck", materials.secondary, [59, 8.8, -8], [18, .65, 130]);
-addBox("BALCONY_Back_Deck", materials.secondary, [0, 8.8, -72], [102, .65, 13]);
-addBox("BALCONY_Left_GlassRail", materials.glass, [-49.8, 10.2, -8], [.18, 2.2, 128]);
-addBox("BALCONY_Right_GlassRail", materials.glass, [49.8, 10.2, -8], [.18, 2.2, 128]);
-addBox("BALCONY_Back_GlassRail", materials.glass, [0, 10.2, -65.2], [98, 2.2, .18]);
+// Floor panels and inlays break up the broad polished surface without affecting collision.
+for (let x = -54; x <= 54; x += 18) {
+  addBox(`FLOOR_Inlay_X_${x}`, materials.brushedMetal, [x, .012, -5], [.055, .025, 126]);
+}
+for (let z = -58; z <= 50; z += 18) {
+  addBox(`FLOOR_Inlay_Z_${z}`, materials.brushedMetal, [0, .014, z], [118, .028, .055]);
+}
+
+// Two occupied balcony levels with glass rails and visible office depth.
+for (const [level, y] of [[1, 6.8], [2, 13.2]]) {
+  addBox(`BALCONY_L${level}_Left_Deck`, materials.secondary, [-59, y, -8], [18, .65, 130]);
+  addBox(`BALCONY_L${level}_Right_Deck`, materials.secondary, [59, y, -8], [18, .65, 130]);
+  addBox(`BALCONY_L${level}_Back_Deck`, materials.secondary, [0, y, -72], [102, .65, 13]);
+  addBox(`BALCONY_L${level}_Left_GlassRail`, materials.glass, [-49.8, y + 1.35, -8], [.18, 2.15, 128]);
+  addBox(`BALCONY_L${level}_Right_GlassRail`, materials.glass, [49.8, y + 1.35, -8], [.18, 2.15, 128]);
+  addBox(`BALCONY_L${level}_Back_GlassRail`, materials.glass, [0, y + 1.35, -65.2], [98, 2.15, .18]);
+  for (const side of [-1, 1]) {
+    for (let bay = 0, z = -54; z <= 36; z += 18, bay += 1) addOfficeBay(`L${level}_${side < 0 ? "L" : "R"}_${bay}`, side * 64.4, y + .35, z, side < 0 ? Math.PI / 2 : -Math.PI / 2);
+  }
+}
+
+addStairFlight("NorthWest", [-40, 0, -58], 1);
+addStairFlight("NorthEast", [40, 0, -58], 1);
 
 // Structural rhythm and integrated light strips.
 let column = 0;
@@ -276,6 +361,8 @@ for (const x of [-65, 65]) {
   for (let z = -68; z <= 52; z += 15) {
     column += 1;
     addBox(`STRUCT_Column_${String(column).padStart(2, "0")}`, materials.structure, [x, 10, z], [1.5, 20, 1.5]);
+    addBox(`STRUCT_ColumnBase_${String(column).padStart(2, "0")}`, materials.brushedMetal, [x, .42, z], [2.25, .84, 2.25]);
+    addBox(`STRUCT_ColumnCap_${String(column).padStart(2, "0")}`, materials.brushedMetal, [x, 19.25, z], [2.2, .5, 2.2]);
     addBox(`LIGHT_Column_${String(column).padStart(2, "0")}`, column % 3 === 0 ? materials.gold : materials.teal, [x * .987, 10, z], [.12, 16, 1.62]);
   }
 }
@@ -289,12 +376,27 @@ addBox("CEILING_Spine", materials.secondary, [0, 20.2, -7], [2, .7, 142]);
 for (const x of [-48, -24, 24, 48]) addBox(`CEILING_Beam_${x}`, materials.secondary, [x, 20.2, -7], [1.1, .7, 142]);
 addNode("CEILING_CoreRing_Outer", "torus", materials.teal, [0, 20, 8], [28, 2.4, 28]);
 addNode("CEILING_CoreRing_Inner", "torus", materials.gold, [0, 19.85, 8], [18, 1.5, 18]);
+for (let x = -48; x <= 48; x += 24) {
+  for (let z = -52; z <= 44; z += 24) {
+    addBox(`CEILING_Coffer_${x}_${z}`, materials.blackMetal, [x, 20.35, z], [18, .3, 16]);
+    addBox(`CEILING_Practical_${x}_${z}`, (x + z) % 48 === 0 ? materials.warm : materials.teal, [x, 20.12, z], [8.5, .055, .18]);
+  }
+}
 
 // Intelligence Core reserve and ceremonial dais.
 addCylinder("CORE_Dais_Lower", materials.structure, [0, .22, 8], [15, .44, 15], { coreReserve: true });
 addCylinder("CORE_Dais_Upper", materials.secondary, [0, .55, 8], [10.5, .65, 10.5]);
 addNode("CORE_FloorRing_Outer", "torus", materials.teal, [0, .92, 8], [20, 1.7, 20]);
 addNode("CORE_FloorRing_Inner", "torus", materials.gold, [0, .94, 8], [12, 1.1, 12]);
+addCylinder("CORE_HologramPlinth", materials.blackMetal, [0, 1.2, 8], [4.2, 1.7, 4.2], { coreReserve: true });
+addCylinder("CORE_HologramEmitter", materials.teal, [0, 2.15, 8], [3.1, .16, 3.1], { coreReserve: true });
+for (let pylon = 0; pylon < 8; pylon += 1) {
+  const angle = pylon / 8 * Math.PI * 2;
+  const x = Math.cos(angle) * 11.8;
+  const z = 8 + Math.sin(angle) * 11.8;
+  addBox(`CORE_Pylon_${pylon + 1}`, materials.blackMetal, [x, 2.2, z], [.7, 3.9, .7], -angle);
+  addBox(`CORE_PylonLight_${pylon + 1}`, pylon % 3 === 0 ? materials.gold : materials.teal, [x, 3.3, z], [.78, 1.15, .12], -angle);
+}
 
 // Navigation paths preserve the existing headquarters station coordinates.
 addBox("PATH_Memory", materials.teal, [-27, .025, 5], [38, .05, .22], -Math.PI / 2);
@@ -310,12 +412,26 @@ addPortal("ProofVault", "Proof Vault", [31, 0, -70], 0, "gold");
 addPortal("IntelligenceObservatory", "Intelligence Observatory", [62, 0, 0], -Math.PI / 2, "teal");
 addPortal("OperationalConsole", "Operational Console", [0, 0, -76], 0, "gold");
 
-// Low-detail furnishing proxies establish scale for the production artist.
+// Production dressing establishes human scale and richer silhouettes.
 for (const side of [-1, 1]) {
   for (let z = -48; z <= 38; z += 22) {
-    addCylinder(`PROP_Planter_${side}_${z}`, materials.secondary, [side * 43, .75, z], [3.1, 1.5, 3.1], { replaceWithProductionProp: true });
-    addCylinder(`PROP_PlantCanopy_${side}_${z}`, materials.teal, [side * 43, 2.4, z], [2.4, 2.2, 2.4], { replaceWithProductionFoliage: true });
+    addCylinder(`PROP_Planter_${side}_${z}`, materials.brushedMetal, [side * 43, .7, z], [3.1, 1.4, 3.1]);
+    addCylinder(`PROP_PlantTrunk_${side}_${z}`, materials.wallStone, [side * 43, 2.1, z], [.42, 2.8, .42]);
+    addCylinder(`PROP_PlantCanopy_${side}_${z}`, materials.foliage, [side * 43, 3.7, z], [2.7, 2.5, 2.7], { foliageLodRequired: true });
+    addBox(`PROP_BenchSeat_${side}_${z}`, materials.upholstery, [side * 37, .72, z], [5.4, .55, 1.4]);
+    addBox(`PROP_BenchBase_${side}_${z}`, materials.blackMetal, [side * 37, .35, z], [4.8, .42, 1.15]);
   }
+}
+
+for (const [id, x, z, yaw] of [
+  ["Memory", -24, 34, Math.PI / 2],
+  ["Observatory", 24, 34, -Math.PI / 2],
+  ["Decision", -24, -34, Math.PI / 4],
+  ["Proof", 24, -34, -Math.PI / 4],
+]) {
+  addBox(`KIOSK_${id}_Body`, materials.blackMetal, [x, 1.35, z], [2.2, 2.7, 1.1], yaw);
+  addBox(`KIOSK_${id}_Display`, materials.display, [x, 2.0, z], [1.75, 1.05, 1.16], yaw, { interactiveReserved: true });
+  addBox(`KIOSK_${id}_Accent`, id === "Proof" ? materials.gold : materials.teal, [x, .32, z], [2.35, .08, 1.3], yaw);
 }
 
 const binary = Buffer.concat(chunks);
