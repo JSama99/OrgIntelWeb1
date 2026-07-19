@@ -404,7 +404,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <button class="interact" id="interactBtn"><span class="key">E</span><span id="interactText">Inspect station</span></button>
 <div class="toast" id="toast" aria-live="polite"></div>
 <div class="cinematic-label" id="cinematicLabel">Cinematic station view</div>
-<div class="asset-credit">V3 · local GLB assets + procedural fallback</div>
+<div class="asset-credit" id="assetCredit">V3 · procedural fallback · loading production atrium…</div>
 <div class="hint" id="hint">WASD to move · click-drag to look · scroll to zoom · two fingers to look/pinch on touch</div>
 
 <div class="tal" id="tal" aria-live="polite"><span class="who">Tal · your guide</span><span id="talMsg"></span></div>
@@ -592,6 +592,7 @@ const tourProgressCount = $('tourProgressCount'), tourProgressFill = $('tourProg
 const interactBtn = $('interactBtn'), interactText = $('interactText'), crosshairEl = $('crosshair');
 const soundBtn = $('soundBtn'), qualityBtn = $('qualityBtn'), toastEl = $('toast');
 const assetStatus = $('assetStatus'), assetStatusText = $('assetStatusText');
+const assetCredit = document.getElementById('assetCredit');
 const cardClose = $('cardClose'), cinematicLabel = $('cinematicLabel');
 
 let booted = false;
@@ -698,6 +699,9 @@ function boot() {
   /* ---------------- The hall: floor, pathways, colonnade ---------------- */
   // Room bounds: x in [-70, 70], z in [-72, 38]
   const BX = 66, BZ_N = -68, BZ_S = 34;
+  const proceduralAtriumFallback = new THREE.Group();
+  proceduralAtriumFallback.name = 'ProceduralAtriumFallback';
+  scene.add(proceduralAtriumFallback);
 
   // Procedural environment group — hidden when the atrium GLB loads successfully.
   const proceduralEnv = new THREE.Group();
@@ -717,12 +721,12 @@ function boot() {
     const d = new THREE.Mesh(new THREE.CylinderGeometry(r, r + .8, .28 + i * .08, 64), daisMat);
     d.position.set(0, .14 + i * .18, 8);
     d.receiveShadow = true; d.castShadow = true;
-    scene.add(d);
+    proceduralAtriumFallback.add(d);
   });
 
   const grid = new THREE.GridHelper(220, 44, 0x123450, 0x0d2438);
   grid.material.transparent = true; grid.material.opacity = 0.35;
-  scene.add(grid);
+  proceduralAtriumFallback.add(grid);
 
   // Teal intelligence pathways: hub → each station + console
   function pathway(x2, z2, color) {
@@ -734,7 +738,7 @@ function boot() {
     );
     m.position.set((x1 + x2) / 2, 0.05, (z1 + z2) / 2);
     m.rotation.y = Math.atan2(x2 - x1, z2 - z1);
-    scene.add(m);
+    proceduralAtriumFallback.add(m);
     return m;
   }
 
@@ -787,7 +791,7 @@ function boot() {
     const a = (i / 12) * Math.PI * 2;
     const light = new THREE.PointLight(i % 3 === 0 ? 0xffb454 : 0x1fe0c6, 9, 24, 2);
     light.position.set(Math.cos(a) * 17, 18.8, 8 + Math.sin(a) * 17);
-    scene.add(light);
+    proceduralAtriumFallback.add(light);
   }
 
   // Procedural skyline beyond the north wall for scale and depth.
@@ -949,10 +953,10 @@ function boot() {
     assetAttempts.done++;
     if (ok) assetAttempts.loaded++;
     assetStatusText.textContent = assetAttempts.done < assetAttempts.total
-      ? 'Loading enhanced models ' + assetAttempts.done + ' / ' + assetAttempts.total + '…'
+      ? 'Loading production assets ' + assetAttempts.done + ' / ' + assetAttempts.total + '…'
       : (assetAttempts.loaded === assetAttempts.total
-          ? 'Enhanced models ready'
-          : 'Enhanced models partly loaded · fallbacks active');
+          ? 'Production assets ready'
+          : 'Production assets partly loaded · fallbacks active');
     if (assetAttempts.done >= assetAttempts.total) assetStatus.classList.add('ready');
   }
 
@@ -972,8 +976,51 @@ function boot() {
     });
   }
 
+  function applyTextureAnisotropy(material) {
+    const maxAnisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
+    ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'].forEach((slot) => {
+      if (material && material[slot]) {
+        material[slot].anisotropy = maxAnisotropy;
+        material[slot].needsUpdate = true;
+      }
+    });
+  }
+
+  function prepareProductionAtrium(model) {
+    const noShadowCaster = /Floor|Glass|Light|Emissive|Display|Sign|Path|Ceiling|Wall/i;
+    model.name = 'OrgIntelHeadquartersAtriumProduction';
+    model.position.set(0, 0, 0);
+    model.rotation.set(0, 0, 0);
+    model.scale.setScalar(1);
+    model.traverse((o) => {
+      if (o.isMesh) {
+        o.receiveShadow = true;
+        o.castShadow = quality.level === 2 && !noShadowCaster.test(o.name);
+        if (Array.isArray(o.material)) o.material.forEach(applyTextureAnisotropy);
+        else applyTextureAnisotropy(o.material);
+      }
+      if (o.isLight) {
+        o.castShadow = false;
+      }
+    });
+  }
+
   if (THREE.GLTFLoader) {
     const modelLoader = new THREE.GLTFLoader();
+
+    modelLoader.load('./models/orgintel-headquarters-atrium-production.glb', (gltf) => {
+      const model = gltf.scene;
+      prepareProductionAtrium(model);
+      scene.add(model);
+      proceduralAtriumFallback.visible = false;
+      assetCredit.textContent = 'V4 · production atrium GLB active';
+      assetFinished(true);
+    }, undefined, (error) => {
+      console.warn('Production atrium GLB failed to load; keeping ProceduralAtriumFallback visible.', error);
+      proceduralAtriumFallback.visible = true;
+      assetCredit.textContent = 'V3 · procedural fallback · atrium unavailable';
+      assetFinished(false);
+    });
 
     modelLoader.load('./models/founder.glb', (gltf) => {
       const model = gltf.scene;
@@ -1034,8 +1081,8 @@ function boot() {
     const stripGeo = new THREE.BoxGeometry(0.18, 14, 0.18);
     const stripMat = new THREE.MeshBasicMaterial({ color: 0x1fe0c6, transparent: true, opacity: 0.35 });
     for (let x = -66; x <= 66; x += 44) {
-      const s1 = new THREE.Mesh(stripGeo, stripMat); s1.position.set(x + 0.9, 8, -71.1); scene.add(s1);
-      const s2 = new THREE.Mesh(stripGeo, stripMat); s2.position.set(x + 0.9, 8, 37.1); scene.add(s2);
+      const s1 = new THREE.Mesh(stripGeo, stripMat); s1.position.set(x + 0.9, 8, -71.1); proceduralAtriumFallback.add(s1);
+      const s2 = new THREE.Mesh(stripGeo, stripMat); s2.position.set(x + 0.9, 8, 37.1); proceduralAtriumFallback.add(s2);
     }
   }
 
