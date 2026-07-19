@@ -5,9 +5,9 @@
 This directory contains two review assets:
 
 - `orgintel-headquarters-atrium-graybox.glb` — locked scale and layout reference.
-- `orgintel-headquarters-atrium-production.glb` — production pass 1 with detailed architecture and expanded PBR material families.
+- `orgintel-headquarters-atrium-production.glb` — production pass 1 with detailed architecture, expanded PBR material families, an embedded runtime base-color atlas, and live experience integration.
 
-The graybox establishes navigation clearances, scale, and room placement. Production pass 1 adds two occupied balcony levels, office bays, architectural glass, stairs, floor inlays, ceiling coffers, portal depth, central-core detailing, practical fixtures, and environmental dressing. It remains a review asset and is not connected to the live experience.
+The graybox establishes navigation clearances, scale, and room placement. Production pass 1 adds two occupied balcony levels, office bays, architectural glass, stairs, floor inlays, ceiling coffers, portal depth, central-core detailing, practical fixtures, and environmental dressing. The production atrium is now connected to the live `/experience/` route through `experience/index.html`, with the procedural atrium retained as a fallback.
 
 ## Production pass 1 status
 
@@ -16,10 +16,23 @@ The graybox establishes navigation clearances, scale, and room placement. Produc
 - Architectural glass extensions: implemented
 - Office depth and warm practical-light surfaces: implemented
 - Furniture and planting silhouettes: implemented
-- Authored texture maps: pending
+- Embedded 1024 × 1024 base-color material atlas: implemented in the runtime GLB
+- External atlas PNG as generator source: retained
+- Normal and combined occlusion/roughness/metallic maps: pending
+- Nine bounded, non-shadow-casting `KHR_lights_punctual` lights: implemented
 - Baked lightmaps and reflection probes: pending
-- Desktop/mobile LODs and compression: pending
-- Live experience integration: intentionally pending
+- Desktop/mobile LODs and geometry compression: pending
+- Live experience integration: implemented
+
+## Live experience integration
+
+`artifacts/orgintel-landing/public/experience/index.html` loads `./models/orgintel-headquarters-atrium-production.glb` as the primary environment GLB. The production atrium is added at the scene origin with identity rotation and scale `1`, and the previous procedural environment is grouped as `ProceduralAtriumFallback`.
+
+`ProceduralAtriumFallback` remains visible while the GLB is loading and remains available if loading fails. After a successful production-atrium load, the fallback is hidden so visitors see the production floor and architecture instead of the procedural grid. Stations, lessons, character models, HUD elements, quality controls, desktop/mobile controls, reduced-motion behavior, and progression persistence remain independent of this environment swap.
+
+## Runtime material and lighting notes
+
+The current production GLB includes a 1024 × 1024 base-color material atlas embedded in the runtime GLB. The external atlas PNG remains the generator source asset. Normal maps and combined occlusion/roughness/metallic maps are still pending. The GLB includes nine bounded `KHR_lights_punctual` practical lights, and runtime integration keeps embedded glTF lights non-shadow-casting. Blender-authored lightmaps, reflection probes, desktop/mobile LODs, and geometry compression remain pending.
 
 ## Coordinate system
 
@@ -78,7 +91,7 @@ Production pass 1 defines expanded material families, including:
 - `MAT_Foliage_DeepGreen`
 - `MAT_Portal_Navy`
 
-Production materials should use glTF-compatible PBR maps. Prominent surfaces should receive base color, roughness, metallic, normal, ambient-occlusion, and selective emissive maps. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
+Production materials currently use the embedded base-color atlas in the runtime GLB. Normal maps, combined occlusion/roughness/metallic maps, and selective emissive maps remain pending. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
 
 ## Environment budgets
 
@@ -122,7 +135,7 @@ The production artist should deliver:
 
 ## Generation
 
-Regenerate production pass 1 from the project root:
+Regenerate production pass 1 from the project root when intentionally updating the GLB or atlas source:
 
 ```bash
 node artifacts/orgintel-landing/scripts/generate-atrium-glb.mjs

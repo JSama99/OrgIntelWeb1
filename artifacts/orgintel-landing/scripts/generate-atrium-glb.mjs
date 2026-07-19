@@ -22,7 +22,7 @@ const json = {
       forwardAxis: "-Z",
       purpose: "Detailed architecture, PBR material families, navigation, and visual review",
       productionPass: 1,
-      liveIntegrationApproved: false,
+      liveIntegrationApproved: true,
     },
   },
   extensionsUsed: [
