@@ -93,6 +93,17 @@ Production pass 1 defines expanded material families, including:
 
 Production materials currently use the embedded base-color atlas in the runtime GLB. Normal maps, combined occlusion/roughness/metallic maps, and selective emissive maps remain pending. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
 
+Production pass 2 embeds `textures/atrium-material-atlas.png` into the GLB and assigns its four material regions with `KHR_texture_transform`:
+
+- polished midnight-navy stone
+- charcoal architectural stone
+- brushed titanium
+- blackened steel
+
+The atlas is a restrained base-color layer. Material roughness, metallic response, clear coat, glass transmission, IOR, and emissive strength remain physically separated in the glTF materials. Normal and ORM maps remain a later authored pass.
+
+The GLB also carries nine bounded `KHR_lights_punctual` practical lights for the central core, office warmth, and console portal. They intentionally do not request shadows; cinematic key lighting and reflection probes remain the responsibility of the host scene.
+
 ## Environment budgets
 
 Initial production targets:

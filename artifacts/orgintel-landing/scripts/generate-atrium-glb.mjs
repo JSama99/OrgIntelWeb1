@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,18 +10,26 @@ const output = path.join(
   "models",
   "orgintel-headquarters-atrium-production.glb",
 );
+const materialAtlas = path.join(
+  root,
+  "public",
+  "experience",
+  "models",
+  "textures",
+  "atrium-material-atlas.png",
+);
 
 const json = {
   asset: {
     version: "2.0",
-    generator: "OrgIntel Atrium Production Generator 2.0",
+    generator: "OrgIntel Atrium Production Generator 3.0",
     extras: {
-      title: "OrgIntel Headquarters Atrium Environment — Production Pass 1",
+      title: "OrgIntel Headquarters Atrium Environment — Realism Pass 2",
       unitMeters: 1,
       upAxis: "Y",
       forwardAxis: "-Z",
-      purpose: "Detailed architecture, PBR material families, navigation, and visual review",
-      productionPass: 1,
+      purpose: "Detailed architecture, authored surface atlas, PBR materials, navigation, and visual review",
+      productionPass: 2,
       liveIntegrationApproved: true,
     },
   },
@@ -30,12 +38,18 @@ const json = {
     "KHR_materials_emissive_strength",
     "KHR_materials_ior",
     "KHR_materials_transmission",
+    "KHR_texture_transform",
+    "KHR_lights_punctual",
   ],
+  extensions: { KHR_lights_punctual: { lights: [] } },
   scene: 0,
   scenes: [{ name: "OrgIntel Headquarters Atrium", nodes: [] }],
   nodes: [],
   meshes: [],
   materials: [],
+  images: [],
+  samplers: [{ name: "SAMPLER_AtlasClamp", magFilter: 9729, minFilter: 9987, wrapS: 33071, wrapT: 33071 }],
+  textures: [{ name: "TEX_OrgIntelAtriumMaterialAtlas", sampler: 0, source: 0 }],
   accessors: [],
   bufferViews: [],
   buffers: [],
@@ -87,11 +101,12 @@ function addAccessor(typedArray, componentType, type, target, includeBounds = fa
   return index;
 }
 
-function registerGeometry(name, geometry) {
+function registerGeometry(name, geometry, includeUv = true) {
   return {
     name,
     position: addAccessor(new Float32Array(geometry.positions), 5126, "VEC3", 34962, true),
     normal: addAccessor(new Float32Array(geometry.normals), 5126, "VEC3", 34962),
+    uv: includeUv ? addAccessor(new Float32Array(geometry.uvs), 5126, "VEC2", 34962) : undefined,
     indices: addAccessor(new Uint16Array(geometry.indices), 5123, "SCALAR", 34963),
   };
 }
@@ -99,6 +114,7 @@ function registerGeometry(name, geometry) {
 function boxGeometry() {
   const positions = [];
   const normals = [];
+  const uvs = [];
   const indices = [];
   const faces = [
     [[1, 0, 0], [[.5,-.5,-.5],[.5,-.5,.5],[.5,.5,.5],[.5,.5,-.5]]],
@@ -114,14 +130,16 @@ function boxGeometry() {
       positions.push(...vertex);
       normals.push(...normal);
     });
+    uvs.push(0, 1, 1, 1, 1, 0, 0, 0);
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   });
-  return { positions, normals, indices };
+  return { positions, normals, uvs, indices };
 }
 
 function cylinderGeometry(segments = 32) {
   const positions = [];
   const normals = [];
+  const uvs = [];
   const indices = [];
   for (let i = 0; i <= segments; i += 1) {
     const angle = (i / segments) * Math.PI * 2;
@@ -129,36 +147,38 @@ function cylinderGeometry(segments = 32) {
     const z = Math.sin(angle) * .5;
     positions.push(x, -.5, z, x, .5, z);
     normals.push(Math.cos(angle), 0, Math.sin(angle), Math.cos(angle), 0, Math.sin(angle));
+    uvs.push(i / segments, 1, i / segments, 0);
   }
   for (let i = 0; i < segments; i += 1) {
     const base = i * 2;
     indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
   }
   const bottomCenter = positions.length / 3;
-  positions.push(0, -.5, 0); normals.push(0, -1, 0);
+  positions.push(0, -.5, 0); normals.push(0, -1, 0); uvs.push(.5, .5);
   const topCenter = positions.length / 3;
-  positions.push(0, .5, 0); normals.push(0, 1, 0);
+  positions.push(0, .5, 0); normals.push(0, 1, 0); uvs.push(.5, .5);
   for (let i = 0; i < segments; i += 1) {
     const next = (i + 1) % segments;
     const a = (i / segments) * Math.PI * 2;
     const b = (next / segments) * Math.PI * 2;
     const bottomA = positions.length / 3;
-    positions.push(Math.cos(a) * .5, -.5, Math.sin(a) * .5); normals.push(0, -1, 0);
+    positions.push(Math.cos(a) * .5, -.5, Math.sin(a) * .5); normals.push(0, -1, 0); uvs.push(.5 + Math.cos(a) * .5, .5 + Math.sin(a) * .5);
     const bottomB = positions.length / 3;
-    positions.push(Math.cos(b) * .5, -.5, Math.sin(b) * .5); normals.push(0, -1, 0);
+    positions.push(Math.cos(b) * .5, -.5, Math.sin(b) * .5); normals.push(0, -1, 0); uvs.push(.5 + Math.cos(b) * .5, .5 + Math.sin(b) * .5);
     indices.push(bottomCenter, bottomB, bottomA);
     const topA = positions.length / 3;
-    positions.push(Math.cos(a) * .5, .5, Math.sin(a) * .5); normals.push(0, 1, 0);
+    positions.push(Math.cos(a) * .5, .5, Math.sin(a) * .5); normals.push(0, 1, 0); uvs.push(.5 + Math.cos(a) * .5, .5 + Math.sin(a) * .5);
     const topB = positions.length / 3;
-    positions.push(Math.cos(b) * .5, .5, Math.sin(b) * .5); normals.push(0, 1, 0);
+    positions.push(Math.cos(b) * .5, .5, Math.sin(b) * .5); normals.push(0, 1, 0); uvs.push(.5 + Math.cos(b) * .5, .5 + Math.sin(b) * .5);
     indices.push(topCenter, topA, topB);
   }
-  return { positions, normals, indices };
+  return { positions, normals, uvs, indices };
 }
 
 function torusGeometry(majorSegments = 48, minorSegments = 10) {
   const positions = [];
   const normals = [];
+  const uvs = [];
   const indices = [];
   const majorRadius = .5;
   const minorRadius = .08;
@@ -169,6 +189,7 @@ function torusGeometry(majorSegments = 48, minorSegments = 10) {
       const radial = majorRadius + minorRadius * Math.cos(av);
       positions.push(radial * Math.cos(au), minorRadius * Math.sin(av), radial * Math.sin(au));
       normals.push(Math.cos(av) * Math.cos(au), Math.sin(av), Math.cos(av) * Math.sin(au));
+      uvs.push(u / majorSegments, v / minorSegments);
     }
   }
   const stride = minorSegments + 1;
@@ -179,7 +200,7 @@ function torusGeometry(majorSegments = 48, minorSegments = 10) {
       indices.push(a, b, a + 1, b, b + 1, a + 1);
     }
   }
-  return { positions, normals, indices };
+  return { positions, normals, uvs, indices };
 }
 
 function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], options = {}) {
@@ -188,6 +209,18 @@ function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], op
     pbrMetallicRoughness: { baseColorFactor: baseColor, metallicFactor: metallic, roughnessFactor: roughness },
     emissiveFactor: emissive,
   };
+  if (options.atlas) {
+    value.pbrMetallicRoughness.baseColorTexture = {
+      index: 0,
+      texCoord: 0,
+      extensions: {
+        KHR_texture_transform: {
+          offset: options.atlas.offset,
+          scale: options.atlas.scale,
+        },
+      },
+    };
+  }
   if (options.alphaMode) {
     value.alphaMode = options.alphaMode;
     value.doubleSided = true;
@@ -213,12 +246,12 @@ function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], op
 }
 
 const materials = {
-  floor: material("MAT_Floor_PolishedNavy", [0.012, 0.028, 0.05, 1], .78, .13, [0, 0, 0], { clearcoat: .72, clearcoatRoughness: .09 }),
+  floor: material("MAT_Floor_PolishedNavy", [.72, .82, .96, 1], .78, .13, [0, 0, 0], { clearcoat: .72, clearcoatRoughness: .09, atlas: { offset: [.002, .002], scale: [.496, .496] } }),
   structure: material("MAT_Structure_BlueBlackMetal", [0.025, 0.065, 0.105, 1], .78, .27),
   secondary: material("MAT_Secondary_Gunmetal", [0.055, 0.095, 0.13, 1], .68, .32),
-  blackMetal: material("MAT_BlackenedSteel", [.008, .014, .021, 1], .92, .2),
-  brushedMetal: material("MAT_BrushedTitanium", [.18, .22, .25, 1], .88, .24),
-  wallStone: material("MAT_Wall_CharcoalStone", [.035, .043, .052, 1], .12, .58),
+  blackMetal: material("MAT_BlackenedSteel", [.62, .68, .76, 1], .92, .2, [0, 0, 0], { atlas: { offset: [.502, .502], scale: [.496, .496] } }),
+  brushedMetal: material("MAT_BrushedTitanium", [.78, .82, .86, 1], .88, .24, [0, 0, 0], { atlas: { offset: [.002, .502], scale: [.496, .496] } }),
+  wallStone: material("MAT_Wall_CharcoalStone", [.58, .6, .64, 1], .12, .58, [0, 0, 0], { atlas: { offset: [.502, .002], scale: [.496, .496] } }),
   glass: material("MAT_Glass_Architectural", [0.018, .09, .12, .3], .05, .06, [0, .018, .025], { alphaMode: "BLEND", transmission: .82, ior: 1.48, clearcoat: .85, clearcoatRoughness: .04 }),
   glassFrosted: material("MAT_Glass_Frosted", [.055, .14, .17, .58], .03, .38, [0, .012, .018], { alphaMode: "BLEND", transmission: .32, ior: 1.46 }),
   teal: material("MAT_Emissive_Teal", [0.005, .16, .19, 1], .28, .19, [0.02, .62, .72], { emissiveStrength: 4.2 }),
@@ -233,7 +266,7 @@ const materials = {
 const geometries = {
   box: registerGeometry("GEO_UnitBox", boxGeometry()),
   cylinder: registerGeometry("GEO_UnitCylinder32", cylinderGeometry()),
-  torus: registerGeometry("GEO_UnitTorus", torusGeometry()),
+  torus: registerGeometry("GEO_UnitTorus", torusGeometry(), false),
 };
 const meshCache = new Map();
 
@@ -241,10 +274,14 @@ function meshFor(geometryName, materialIndex) {
   const key = `${geometryName}:${materialIndex}`;
   if (meshCache.has(key)) return meshCache.get(key);
   const geometry = geometries[geometryName];
+  const attributes = { POSITION: geometry.position, NORMAL: geometry.normal };
+  if (json.materials[materialIndex].pbrMetallicRoughness.baseColorTexture) {
+    attributes.TEXCOORD_0 = geometry.uv;
+  }
   const index = json.meshes.length;
   json.meshes.push({
     name: `${geometry.name}_${json.materials[materialIndex].name}`,
-    primitives: [{ attributes: { POSITION: geometry.position, NORMAL: geometry.normal }, indices: geometry.indices, material: materialIndex }],
+    primitives: [{ attributes, indices: geometry.indices, material: materialIndex }],
   });
   meshCache.set(key, index);
   return index;
@@ -270,6 +307,19 @@ function addBox(name, materialIndex, translation, scale, yaw = 0, extras) {
 
 function addCylinder(name, materialIndex, translation, scale, extras) {
   return addNode(name, "cylinder", materialIndex, translation, scale, 0, extras);
+}
+
+function addPointLight(name, color, intensity, range, translation) {
+  const lightIndex = json.extensions.KHR_lights_punctual.lights.length;
+  json.extensions.KHR_lights_punctual.lights.push({ name, type: "point", color, intensity, range });
+  const nodeIndex = json.nodes.length;
+  json.nodes.push({
+    name: `LIGHTNODE_${name}`,
+    translation,
+    extensions: { KHR_lights_punctual: { light: lightIndex } },
+    extras: { castsShadow: false, qualityTier: "desktop-and-mobile" },
+  });
+  json.scenes[0].nodes.push(nodeIndex);
 }
 
 function addPortal(id, label, position, yaw, accent) {
@@ -433,6 +483,24 @@ for (const [id, x, z, yaw] of [
   addBox(`KIOSK_${id}_Display`, materials.display, [x, 2.0, z], [1.75, 1.05, 1.16], yaw, { interactiveReserved: true });
   addBox(`KIOSK_${id}_Accent`, id === "Proof" ? materials.gold : materials.teal, [x, .32, z], [2.35, .08, 1.3], yaw);
 }
+
+// Bounded practical lights give reflective materials spatial response without shadow cost.
+addPointLight("CoreTeal", [.02, .7, .9], 185, 30, [0, 7.5, 8]);
+addPointLight("CoreGold", [1, .34, .06], 105, 20, [0, 3.2, 8]);
+for (const side of [-1, 1]) {
+  for (const z of [-42, -8, 26]) {
+    addPointLight(`OfficeWarm_${side}_${z}`, [1, .42, .14], 72, 16, [side * 48, 9.2, z]);
+  }
+}
+addPointLight("ConsolePortalGold", [1, .3, .055], 92, 18, [0, 7, -67]);
+
+const atlasBytes = await readFile(materialAtlas);
+const atlasBufferView = appendBytes(atlasBytes);
+json.images.push({
+  name: "IMG_OrgIntelAtriumMaterialAtlas",
+  mimeType: "image/png",
+  bufferView: atlasBufferView,
+});
 
 const binary = Buffer.concat(chunks);
 const binaryPadding = align4(binary.length) - binary.length;
