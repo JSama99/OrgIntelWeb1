@@ -188,7 +188,7 @@ function transformExperienceHtml(source: string): string {
   html = replaceOnce(
     html,
     `    if (e.target.closest('.card, .pill, .tal, .timebar')) return;`,
-    `    if (e.target.closest('.card, .pill, .tal, .timebar, .decision-lesson')) return;`,
+    `    if (e.target.closest('.card, .pill, .tal, .timebar, .decision-lesson, .proof-lesson, .observatory-lesson')) return;`,
     'mobile lesson touch isolation',
   );
 
