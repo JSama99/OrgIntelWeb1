@@ -667,6 +667,11 @@ function boot() {
   })();
   const automaticQualityLevel = deviceTier === 'desktop' ? 2 : deviceTier === 'tablet' ? 1 : 0;
   const quality = { mode: 'auto', level: automaticQualityLevel, deviceTier };
+  const characterReviewRequests = {
+    hero: params.get('characters') === 'review' || params.get('hero') === 'review',
+    tal: params.get('characters') === 'review' || params.get('tal') === 'review'
+  };
+  const characterAssetStatus = { hero: 'production', tal: 'production' };
   function applyQuality(level, announce) {
     quality.level = Math.max(0, Math.min(2, level));
     const ratios = [1, Math.min(devicePixelRatio || 1, 1.35), Math.min(devicePixelRatio || 1, 2)];
@@ -1333,23 +1338,65 @@ function boot() {
 
     loadAtriumCandidate(0);
 
-    modelLoader.load('./models/founder.glb', (gltf) => {
-      const model = gltf.scene;
-      prepareLoadedModel(model, 1.0, new THREE.Vector3(0, 0, 0), Math.PI);
-      player.add(model);
-      playerModel.visible = false;
-      player.userData.loadedModel = model;
-      assetFinished(true);
-    }, undefined, () => assetFinished(false));
+    function loadCharacterAsset(options) {
+      const candidates = options.requestReview
+        ? [
+            { url: options.reviewUrl, status: 'review', label: options.label + ' review' },
+            { url: options.productionUrl, status: 'production fallback', label: options.label + ' production fallback' }
+          ]
+        : [{ url: options.productionUrl, status: 'production', label: options.label + ' production' }];
+      const loadCandidate = (index) => {
+        const candidate = candidates[index];
+        if (!candidate) {
+          characterAssetStatus[options.statusKey] = 'unavailable';
+          assetFinished(false);
+          return;
+        }
+        modelLoader.load(candidate.url, (gltf) => {
+          const model = gltf.scene;
+          prepareLoadedModel(model, options.scale, new THREE.Vector3(0, 0, 0), options.rotationY);
+          options.anchor.add(model);
+          options.placeholder.visible = false;
+          options.anchor.userData.loadedModel = model;
+          characterAssetStatus[options.statusKey] = candidate.status;
+          assetFinished(true);
+        }, undefined, (error) => {
+          if (index + 1 < candidates.length) {
+            console.warn(candidate.label + ' GLB failed to load; attempting character fallback.', error);
+            loadCandidate(index + 1);
+            return;
+          }
+          console.warn(candidate.label + ' GLB failed to load; keeping procedural character fallback.', error);
+          characterAssetStatus[options.statusKey] = 'procedural fallback';
+          assetFinished(false);
+        });
+      };
+      loadCandidate(0);
+    }
 
-    modelLoader.load('./models/tal.glb', (gltf) => {
-      const model = gltf.scene;
-      prepareLoadedModel(model, 1.12, new THREE.Vector3(0, 0, 0), Math.PI);
-      tal.add(model);
-      talModel.visible = false;
-      tal.userData.loadedModel = model;
-      assetFinished(true);
-    }, undefined, () => assetFinished(false));
+    loadCharacterAsset({
+      statusKey: 'hero',
+      label: 'Hero',
+      requestReview: characterReviewRequests.hero,
+      reviewUrl: './models/orgintel-hero-character-review.glb',
+      productionUrl: './models/founder.glb',
+      anchor: player,
+      placeholder: playerModel,
+      scale: 1.0,
+      rotationY: Math.PI
+    });
+
+    loadCharacterAsset({
+      statusKey: 'tal',
+      label: 'Tal',
+      requestReview: characterReviewRequests.tal,
+      reviewUrl: './models/orgintel-tal-character-review.glb',
+      productionUrl: './models/tal.glb',
+      anchor: tal,
+      placeholder: talModel,
+      scale: 1.12,
+      rotationY: Math.PI
+    });
 
     modelLoader.load('./models/intelligence-core.glb', (gltf) => {
       const model = gltf.scene;
@@ -2669,7 +2716,7 @@ function boot() {
     perfDiagnostics.frames = 0; perfDiagnostics.elapsedMs = 0;
     const info = perfDiagnostics.lastRenderInfo;
     const tier = quality.level === 2 ? 'high' : quality.level === 1 ? 'medium' : 'low';
-    const rows = [['FPS', fps.toFixed(0)], ['Avg frame', avg.toFixed(1) + ' ms'], ['GPU draw calls', info.calls], ['Rendered triangles', info.triangles], ['Textures', info.textures], ['Geometries', info.geometries], ['Quality', tier + (quality.mode === 'manual' ? ' manual' : ' auto')], ['Atrium', activeAtriumStatus], ['Instancing', atriumInstanceStats.enabled ? 'on' : 'off'], ['Instance batches', atriumInstanceStats.batches], ['Source meshes consolidated', atriumInstanceStats.sourceMeshes], ['Total instances', atriumInstanceStats.totalInstances]];
+    const rows = [['FPS', fps.toFixed(0)], ['Avg frame', avg.toFixed(1) + ' ms'], ['GPU draw calls', info.calls], ['Rendered triangles', info.triangles], ['Textures', info.textures], ['Geometries', info.geometries], ['Quality', tier + (quality.mode === 'manual' ? ' manual' : ' auto')], ['Atrium', activeAtriumStatus], ['Hero', characterAssetStatus.hero], ['Tal', characterAssetStatus.tal], ['Instancing', atriumInstanceStats.enabled ? 'on' : 'off'], ['Instance batches', atriumInstanceStats.batches], ['Source meshes consolidated', atriumInstanceStats.sourceMeshes], ['Total instances', atriumInstanceStats.totalInstances]];
     const latestProfile = profileDiagnostics.enabled ? profileDiagnostics.latest : null;
     if (latestProfile) {
       rows.push(['Profile scene items', latestProfile.totals.categorizedSceneDrawItems + ' est']);
