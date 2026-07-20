@@ -87,7 +87,11 @@ The existing manual `Q·H`, `Q·M`, and `Q·L` control remains available and imm
 
 ### Diagnostics
 
-Optional performance diagnostics are hidden by default and appear only with `?perf=1`. The panel reports FPS, average frame time, draw calls, visible triangles, texture count, geometry count, current quality tier, and current atrium environment status. It updates roughly twice per second, ignores pointer events, and is styled to remain readable on desktop and mobile without affecting lessons or controls.
+Optional performance diagnostics are hidden by default and appear only with `?perf=1`, including combined review URLs such as `?atrium=pass4&perf=1`. FPS and average frame time are calculated from raw consecutive `requestAnimationFrame` timestamps in milliseconds, separate from the normalized 60-FPS animation delta used by movement, camera interpolation, lessons, and ambient animation. Abnormal startup, hidden-tab, browser-suspension, and background-return timing gaps are ignored so the displayed sample reflects active frames.
+
+Renderer statistics are reset once at the beginning of each diagnostics-enabled rendered frame, captured after the complete frame renders, and preserved until the next panel refresh. When bloom/post-processing is active through `EffectComposer`, the reported GPU draw calls and rendered triangles include the scene render plus post-processing passes; the labels intentionally avoid claiming that accumulated post-processing triangles are scene-visible geometry. When post-processing is unavailable, the same fields come from the normal `renderer.render(scene, camera)` path after rendering. The panel continues to report FPS, average frame time, GPU draw calls, rendered triangles, texture count, geometry count, current quality tier, and current atrium environment status, updates roughly twice per second, ignores pointer events, and remains readable on desktop and mobile without affecting lessons or controls.
+
+Without `?perf=1`, diagnostics stay completely disabled and the renderer keeps its normal `renderer.info` auto-reset behavior so default visitors do not pay the diagnostics bookkeeping cost.
 
 ### LOD classification
 

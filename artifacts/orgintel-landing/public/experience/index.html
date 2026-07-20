@@ -2161,26 +2161,54 @@ function boot() {
      ============================================================ */
   const BXc = 62, BZNc = -66, BZSc = 32;
   contactDepthSystem = createContactDepthSystem();
-  const perfDiagnostics = { enabled: new URLSearchParams(location.search).get('perf') === '1', frames: 0, elapsed: 0, last: 0 };
-  if (perfDiagnostics.enabled) perfPanel.classList.add('on');
-  function updatePerfDiagnostics(dt, now) {
+  const perfDiagnostics = {
+    enabled: new URLSearchParams(location.search).get('perf') === '1',
+    frames: 0,
+    elapsedMs: 0,
+    panelLast: 0,
+    lastRenderInfo: { calls: 0, triangles: 0, textures: 0, geometries: 0 }
+  };
+  if (perfDiagnostics.enabled) {
+    perfPanel.classList.add('on');
+    renderer.info.autoReset = false;
+  }
+  function beginPerfDiagnosticsFrame() {
     if (!perfDiagnostics.enabled) return;
-    perfDiagnostics.frames++; perfDiagnostics.elapsed += dt;
-    if (now - perfDiagnostics.last < 500) return;
-    perfDiagnostics.last = now;
+    renderer.info.reset();
+  }
+  function capturePerfDiagnosticsFrame(rawFrameMs) {
+    if (!perfDiagnostics.enabled) return;
     const info = renderer.info;
-    const fps = perfDiagnostics.frames / Math.max(perfDiagnostics.elapsed / 1000, 0.001);
-    const avg = perfDiagnostics.elapsed / Math.max(perfDiagnostics.frames, 1);
-    perfDiagnostics.frames = 0; perfDiagnostics.elapsed = 0;
+    perfDiagnostics.lastRenderInfo = {
+      calls: info.render.calls,
+      triangles: info.render.triangles,
+      textures: info.memory.textures,
+      geometries: info.memory.geometries
+    };
+    if (rawFrameMs > 0 && rawFrameMs <= 250) {
+      perfDiagnostics.frames++;
+      perfDiagnostics.elapsedMs += rawFrameMs;
+    }
+  }
+  function updatePerfDiagnosticsPanel(now) {
+    if (!perfDiagnostics.enabled || now - perfDiagnostics.panelLast < 500) return;
+    perfDiagnostics.panelLast = now;
+    const sampledFrames = perfDiagnostics.frames;
+    const sampledElapsed = perfDiagnostics.elapsedMs;
+    const fps = sampledFrames > 0 ? sampledFrames * 1000 / Math.max(sampledElapsed, 0.001) : 0;
+    const avg = sampledFrames > 0 ? sampledElapsed / sampledFrames : 0;
+    perfDiagnostics.frames = 0; perfDiagnostics.elapsedMs = 0;
+    const info = perfDiagnostics.lastRenderInfo;
     const tier = quality.level === 2 ? 'high' : quality.level === 1 ? 'medium' : 'low';
-    const rows = [['FPS', fps.toFixed(0)], ['Avg frame', avg.toFixed(1) + ' ms'], ['Draw calls', info.render.calls], ['Visible triangles', info.render.triangles], ['Textures', info.memory.textures], ['Geometries', info.memory.geometries], ['Quality', tier + (quality.mode === 'manual' ? ' manual' : ' auto')], ['Atrium', activeAtriumStatus]];
+    const rows = [['FPS', fps.toFixed(0)], ['Avg frame', avg.toFixed(1) + ' ms'], ['GPU draw calls', info.calls], ['Rendered triangles', info.triangles], ['Textures', info.textures], ['Geometries', info.geometries], ['Quality', tier + (quality.mode === 'manual' ? ' manual' : ' auto')], ['Atrium', activeAtriumStatus]];
     perfPanelRows.innerHTML = rows.map(([k, v]) => '<div class="row"><span>' + k + '</span><span class="value">' + v + '</span></div>').join('');
   }
   let raf = null, running = false;
   const clock = { last: 0 };
 
   function frame(t) {
-    const dt = Math.min(3, (t - clock.last) / 16.6) || 1;
+    const rawFrameMs = t - clock.last;
+    const dt = Math.min(3, rawFrameMs / 16.6) || 1;
     clock.last = t;
 
     // Tour auto-walk: Tal leads, the player is drawn along
@@ -2280,10 +2308,12 @@ function boot() {
     updateAmbient(dt, t);
     updateStations(dt, t);
     refreshAtriumLOD(false);
-    updatePerfDiagnostics(dt, t);
     updateRaycast();
+    beginPerfDiagnosticsFrame();
     if (composer) composer.render();
     else renderer.render(scene, camera);
+    capturePerfDiagnosticsFrame(rawFrameMs);
+    updatePerfDiagnosticsPanel(t);
     raf = requestAnimationFrame(frame);
   }
 
