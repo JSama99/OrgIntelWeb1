@@ -1058,18 +1058,27 @@ function boot() {
   if (THREE.GLTFLoader) {
     const modelLoader = new THREE.GLTFLoader();
 
-    modelLoader.load('./models/orgintel-headquarters-atrium-production.glb', (gltf) => {
+    const activateAtrium = (gltf, statusText) => {
       const model = gltf.scene;
       prepareProductionAtrium(model);
       scene.add(model);
       proceduralAtriumFallback.visible = false;
-      assetCredit.textContent = 'V4 · production atrium GLB active';
+      assetCredit.textContent = statusText;
       assetFinished(true);
-    }, undefined, (error) => {
-      console.warn('Production atrium GLB failed to load; keeping ProceduralAtriumFallback visible.', error);
-      proceduralAtriumFallback.visible = true;
-      assetCredit.textContent = 'V3 · procedural fallback · atrium unavailable';
-      assetFinished(false);
+    };
+
+    modelLoader.load('./models/orgintel-headquarters-atrium-pass3-review.glb', (gltf) => {
+      activateAtrium(gltf, 'V5 · Pass 3 PBR atrium active');
+    }, undefined, (pass3Error) => {
+      console.warn('Pass 3 atrium GLB failed to load; attempting the Pass 2 production asset.', pass3Error);
+      modelLoader.load('./models/orgintel-headquarters-atrium-production.glb', (gltf) => {
+        activateAtrium(gltf, 'V4 · production atrium active · Pass 3 fallback');
+      }, undefined, (productionError) => {
+        console.warn('Production atrium GLBs failed to load; keeping ProceduralAtriumFallback visible.', productionError);
+        proceduralAtriumFallback.visible = true;
+        assetCredit.textContent = 'V3 · procedural fallback · atrium unavailable';
+        assetFinished(false);
+      });
     });
 
     modelLoader.load('./models/founder.glb', (gltf) => {
