@@ -290,10 +290,11 @@ Pass 5B recommendations are diagnostic only and are intentionally conservative:
 - `Requires interaction review` if any member belongs to portal, lesson, station, path, kiosk, collision, or interactive ancestry/metadata.
 - `Requires LOD review` if any member belongs to an LOD hierarchy or LOD-named ancestry.
 - `Requires material review` if transparency is present or material/render-order variants are detected.
-- `Likely safe batching candidate` only when the geometry/material signature repeats across multiple rendered objects and none of the above exclusion signals are present.
+- `Likely safe batching candidate` only when the geometry/material signature repeats across multiple rendered objects, static-transform evidence is true, and none of the above exclusion signals are present.
+- `Insufficient evidence: transform may update` when no stronger exclusion applies but the collected static-transform indicator is false.
 - `Insufficient evidence` when the observed signature is not repeated or the collected data is not strong enough to support a later batching proposal.
 
-The profiler must not automatically mark a candidate safe when it is skinned, morph-targeted, part of a portal or lesson interaction, part of an LOD hierarchy, has material or render-order differences, or lacks repeated geometry/material evidence.
+The profiler must not automatically mark a candidate safe when it is skinned, morph-targeted, part of a portal or lesson interaction, part of an LOD hierarchy, has material or render-order differences, has a false static-transform indicator that requires further review, or lacks repeated geometry/material evidence.
 
 ### Measurement limitations
 

@@ -2405,6 +2405,7 @@ function boot() {
     if (signature.interactiveOrPortalAncestry) return 'Requires interaction review';
     if (signature.lodAncestry) return 'Requires LOD review';
     if (signature.transparent || signature.materialVariantCount > 1 || signature.renderOrderVariantCount > 1) return 'Requires material review';
+    if (!signature.staticTransform) return 'Insufficient evidence: transform may update';
     if (signature.drawCalls > 1 && signature.uniqueRenderedObjectCount > 1) return 'Likely safe batching candidate';
     return 'Insufficient evidence';
   }
@@ -2609,6 +2610,7 @@ function boot() {
         material: signature.materialName,
         objectType: signature.objectType,
         existingInstancing: signature.instancedMesh ? 'yes (' + signature.instanceCount + ')' : 'no',
+        staticTransform: signature.staticTransform ? 'yes' : 'no',
         lodInvolvement: signature.lodAncestry ? 'yes' : 'no',
         interactionInvolvement: signature.interactiveOrPortalAncestry ? 'yes' : 'no'
       })));
@@ -2620,6 +2622,7 @@ function boot() {
         material: signature.materialName,
         objectType: signature.objectType,
         existingInstancing: signature.instancedMesh ? 'yes (' + signature.instanceCount + ')' : 'no',
+        staticTransform: signature.staticTransform ? 'yes' : 'no',
         lodInvolvement: signature.lodAncestry ? 'yes' : 'no',
         interactionInvolvement: signature.interactiveOrPortalAncestry ? 'yes' : 'no',
         recommendation: signature.recommendation
