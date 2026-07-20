@@ -2,12 +2,12 @@
 
 ## Production brief
 
-This directory contains two validated assets and documents isolated review assets:
+This directory contains validated atrium assets and documents production/runtime status:
 
 - `orgintel-headquarters-atrium-graybox.glb` — locked scale and layout reference.
 - `orgintel-headquarters-atrium-production.glb` — production pass 2 with detailed architecture, expanded PBR material families, an embedded runtime base-color atlas, and live experience integration.
-- `orgintel-headquarters-atrium-pass3-review.glb` — validated Pass 3 PBR atrium and current primary live environment.
-- `orgintel-headquarters-atrium-pass4-observatory-review.glb` — reserved Pass 4B open-sky Observatory aperture review output; generated outside Codex Cloud only after text review.
+- `orgintel-headquarters-atrium-pass3-review.glb` — validated Pass 3 PBR atrium retained as the first rollback fallback.
+- `orgintel-headquarters-atrium-pass4-observatory-review.glb` — production-active Pass 4 Observatory atrium. The filename retains `review`, but the asset has completed validation and visual approval.
 
 The graybox establishes navigation clearances, scale, and room placement. Production pass 1 adds two occupied balcony levels, office bays, architectural glass, stairs, floor inlays, ceiling coffers, portal depth, central-core detailing, practical fixtures, and environmental dressing. The production atrium is now connected to the live `/experience/` route through `experience/index.html`, with the procedural atrium retained as a fallback.
 
@@ -28,13 +28,13 @@ The graybox establishes navigation clearances, scale, and room placement. Produc
 
 ## Live experience integration
 
-`artifacts/orgintel-landing/public/experience/index.html` loads `./models/orgintel-headquarters-atrium-pass3-review.glb` as the default primary environment GLB, then falls back to `./models/orgintel-headquarters-atrium-production.glb`, then keeps `ProceduralAtriumFallback`. The isolated Pass 4B Observatory review GLB is query-controlled and is requested only when `?atrium=pass4` is present. The production atrium is added at the scene origin with identity rotation and scale `1`, and the previous procedural environment is grouped as `ProceduralAtriumFallback`.
+`artifacts/orgintel-landing/public/experience/index.html` loads `./models/orgintel-headquarters-atrium-pass4-observatory-review.glb` as the default primary environment GLB, then falls back to `./models/orgintel-headquarters-atrium-pass3-review.glb`, then `./models/orgintel-headquarters-atrium-production.glb`, then keeps `ProceduralAtriumFallback`. The `?atrium=pass4` query remains a backward-compatible alias for the same default Pass 4 behavior. The manual rollback query `?atrium=pass3` skips Pass 4 and starts with Pass 3 before the Pass 2 and procedural fallbacks. The production atrium is added at the scene origin with identity rotation and scale `1`, and the previous procedural environment is grouped as `ProceduralAtriumFallback`.
 
 `ProceduralAtriumFallback` remains visible while the GLB is loading and remains available if loading fails. After a successful production-atrium load, the fallback is hidden so visitors see the production floor and architecture instead of the procedural grid. Stations, lessons, character models, HUD elements, quality controls, desktop/mobile controls, reduced-motion behavior, and progression persistence remain independent of this environment swap.
 
 ## Runtime material and lighting notes
 
-Pass 3 is active and validated in the live loader. The runtime preserves the current PMREM, bloom, exposure, glass, floor, and PBR material tuning for separate visual review. The production and Pass 3 GLBs preserve the existing PNG atlas assets; Pass 3 embeds base-color, normal, and combined ORM atlases. KTX2/Basis texture delivery, Meshopt/Draco compression, Blender-authored lightmaps, and reflection probes remain future additive review assets rather than replacements in this slice.
+Pass 4 is production-active and validated in the live loader, with Pass 3 retained for rollback. The runtime preserves the current PMREM, bloom, exposure, glass, floor, and PBR material tuning for separate visual review. The production and Pass 3 GLBs preserve the existing PNG atlas assets; Pass 3 embeds base-color, normal, and combined ORM atlases. KTX2/Basis texture delivery, Meshopt/Draco compression, Blender-authored lightmaps, and reflection probes remain future additive review assets rather than replacements in this slice.
 
 ## Pass 3 isolated review workflow
 
@@ -113,75 +113,69 @@ Pass 4A adds subtle floor contact depth using runtime-generated soft radial plan
 
 ### Deferred visual/binary work
 
-The Observatory ceiling opening remains deferred to a separate generator/binary pass. KTX2/Basis textures and Meshopt/Draco geometry compression remain future additive review assets. Existing GLB and PNG assets remain preserved.
+The Observatory ceiling opening is now production-active in Pass 4. KTX2/Basis textures and Meshopt/Draco geometry compression remain future additive review assets. Existing GLB and PNG assets remain preserved.
 
 
-## Pass 4B Intelligence Observatory open-sky review
+## Pass 4 Observatory production promotion
 
-Pass 4A runtime performance foundation is merged as the current reversible runtime layer. Its quality tiers, diagnostics, LOD classification, and contact-depth controls remain runtime-only and do not change the validated atrium binaries or atlas PNGs.
+Pass 4 is production-active for normal `/experience/` visits. The file remains named `orgintel-headquarters-atrium-pass4-observatory-review.glb` for artifact continuity, but it has completed validation, Observatory-aperture visual approval, and runtime-instancing visual approval.
 
-Pass 4B is an isolated generator mode for architectural review of the Intelligence Observatory roof opening. It starts from the complete validated Pass 3 PBR configuration, requires the existing base-color, normal, and ORM atlases, and writes only `orgintel-headquarters-atrium-pass4-observatory-review.glb`. Pass 3 remains the default public experience: normal `/experience/` visits continue to request `orgintel-headquarters-atrium-pass3-review.glb` before falling back to the Pass 2 production GLB and procedural atrium. The Pass 4B review asset is loaded only by the exact review URL parameter `?atrium=pass4`, which prepends `orgintel-headquarters-atrium-pass4-observatory-review.glb` to the same fallback chain without changing stations, portals, lessons, room gates, progression, or default visitor behavior.
-
-New review command:
-
-```bash
-node artifacts/orgintel-landing/scripts/generate-atrium-glb.mjs --pass4-observatory-review
-```
-
-New review output:
-
-- `artifacts/orgintel-landing/public/experience/models/orgintel-headquarters-atrium-pass4-observatory-review.glb`
-
-The Pass 4B aperture is centered above the Intelligence Observatory viewing region near the existing station at `(46, 0)` and the preserved portal coordinate `(62, 0, 0)`. The generator removes only the obstructing Observatory ceiling coffer/practical-light cells and splits the long `CEILING_Beam_48` member into named north and south structural segments outside the opening. New deterministic rim nodes (`OBSERVATORY_ROOF_RimNorth`, `OBSERVATORY_ROOF_RimSouth`, `OBSERVATORY_ROOF_RimEast`, `OBSERVATORY_ROOF_RimWest`, `OBSERVATORY_ROOF_AccentNorth`, and `OBSERVATORY_ROOF_AccentSouth`) frame the open sky with existing metal, cyan, and gold material families while leaving the aperture center completely open. No skylight glass, frosted panel, transparent ceiling surface, decorative crossing mesh, or new bloom-heavy light is introduced.
-
-
-### Pass 4B review asset validation
-
-The reviewed Pass 4B GLB is present at `artifacts/orgintel-landing/public/experience/models/orgintel-headquarters-atrium-pass4-observatory-review.glb` with these validation results:
+### Pass 4 validation and visual approval
 
 - Size: 5,283,800 bytes
 - Nodes: 551
-- Meshes: 23
+- Shared meshes: 23
 - Materials: 15
+- Three embedded 1024 × 1024 atlases
 - SHA-256: `e10d510f756b6bbfb02a8a4f04f088675f651ff28259a02415c0e8c9c71d9b99`
-- Khronos validation: zero errors, warnings, infos, and hints
+- Khronos validation: 0 errors, 0 warnings, 0 infos, 0 hints
+- Observatory opening: visually approved
+- Runtime instancing: visually approved
 
-### Query-controlled review workflow
+### Final fallback chain
 
-Use the exact review parameter `?atrium=pass4` to inspect Pass 4B in the live experience shell. For example, open `/experience/?atrium=pass4` for the review route, or `/experience/?atrium=pass4&perf=1` to combine the review GLB with the existing performance diagnostics panel. The runtime optimization switches remain reversible and independent: `pass4=0` disables Pass 4A runtime optimizations, while `lod=0` and `contacts=0` disable only their focused runtime layers. These optimization switches do not select or deselect the Pass 4B review asset; only `atrium=pass4` controls asset selection.
+Default `/experience/` and the backward-compatible `/experience/?atrium=pass4` route use the same asset chain:
 
-Expected loader order:
+1. Pass 4 Observatory atrium: `orgintel-headquarters-atrium-pass4-observatory-review.glb`
+2. Pass 3 PBR atrium: `orgintel-headquarters-atrium-pass3-review.glb`
+3. Pass 2 production atrium: `orgintel-headquarters-atrium-production.glb`
+4. `ProceduralAtriumFallback`
 
-- Default `/experience/`: Pass 3 PBR atrium, then Pass 2 production atrium, then `ProceduralAtriumFallback`.
-- Review `/experience/?atrium=pass4`: Pass 4B Observatory review atrium, then Pass 3 PBR atrium, then Pass 2 production atrium, then `ProceduralAtriumFallback`.
+The loader treats that chain as one atrium asset attempt. The single-success guard permits only one atrium scene to be added, and `assetFinished` is called once for the entire atrium attempt. Status text confirms the active environment:
 
-Status text confirms the active environment:
+- `V6 · Pass 4 Observatory atrium active` when Pass 4 loads.
+- `V5 · Pass 3 PBR atrium active · Pass 4 fallback` when Pass 4 fails and Pass 3 loads.
+- `V4 · production atrium active · Pass 3 fallback` when Pass 2 loads.
+- `V3 · procedural fallback · atrium unavailable` when all atrium GLBs fail.
 
-- `V6 · Pass 4B Observatory review active` when Pass 4B loads.
-- `V5 · Pass 3 PBR atrium active · Pass 4B fallback` when Pass 4B fails and Pass 3 loads.
-- Existing default statuses remain unchanged for normal visitors.
+### Manual rollback
 
-### Pass 4B rollback instructions
+Use `/experience/?atrium=pass3` to skip Pass 4 without disabling the runtime optimization layer. The rollback chain is Pass 3, then Pass 2, then `ProceduralAtriumFallback`. A successful forced rollback displays `V5 · Pass 3 PBR atrium active · manual rollback`. Add `&perf=1` for diagnostics, for example `/experience/?atrium=pass3&perf=1`.
 
-Rollback remains text-only and does not require changing Pass 2, Pass 3, or atlas binaries. Remove the `?atrium=pass4` review parameter to return to the default Pass 3 route. If the review asset needs to be withdrawn, delete only `orgintel-headquarters-atrium-pass4-observatory-review.glb` from the review environment or revert the query-controlled loader addition; the public default continues to use Pass 3. Do not replace `orgintel-headquarters-atrium-production.glb`, `orgintel-headquarters-atrium-pass3-review.glb`, or any PNG atlas as part of Pass 4B rollback.
+### Runtime instancing measurements
 
-### Replit binary-generation workflow
+Pass 4 runtime instancing remains enabled by default where `THREE.InstancedMesh` is available and the source meshes are safe to batch. In the tested view, draw calls dropped from approximately 852 to approximately 570 while FPS remained approximately 60 and average frame time remained approximately 16.7 ms. Diagnostics report whether instancing is on, instance batch count, consolidated source mesh count, and total instances.
 
-Codex Cloud may edit text only and must not generate or commit the Pass 4B GLB. After this text-only change is reviewed, generate the binary in Replit or another approved binary-authoring environment with the command above. Confirm the three atlas PNGs are present under `public/experience/models/textures/` before generation, then run Khronos validation and deterministic hash checks on the produced review GLB.
+### Diagnostics and reversible switches
 
-### Visual approval requirements
+Diagnostics remain hidden unless `?perf=1` is present. Confirmed review URLs include:
 
-Before any live-loader change is considered, visually approve the Pass 4B review GLB in the cinematic upward Observatory camera movement and verify that:
+- `/experience/`
+- `/experience/?perf=1`
+- `/experience/?atrium=pass3&perf=1`
+- `/experience/?perf=1&batch=0`
 
-1. The Intelligence Observatory constellation remains visible through the open roof aperture.
-2. The center of the aperture is free of glass and opaque crossing geometry.
-3. The rim reads as authored headquarters architecture from the Observatory floor.
-4. The five portal coordinates, navigation paths, player boundaries, stairs, balcony decks, office bays, Intelligence Core reserve, Pass 3 PBR materials, explicit tangents, normal maps, ORM maps, and nine existing practical lights remain preserved.
-5. The production Pass 2 GLB, Pass 3 review GLB, and all atlas PNGs remain unchanged.
+Asset selection and runtime optimization flags are independent. Reversible switches are:
 
-### Rollback behavior
+- `?atrium=pass3` — manual asset rollback to Pass 3.
+- `?atrium=pass4` — backward-compatible alias for default Pass 4 asset selection.
+- `?batch=0` — disables runtime instancing only.
+- `?pass4=0` — disables the Pass 4 runtime optimization layer, including LOD and contact depth, without changing asset selection.
+- `?lod=0` — disables distance-based LOD only.
+- `?contacts=0` — disables contact-depth planes only.
+- `?perf=1` — enables diagnostics only.
 
-Rollback is unchanged because Pass 4B is review-only. If the aperture needs revision, discard the generated `orgintel-headquarters-atrium-pass4-observatory-review.glb` and continue using the live V5 Pass 3 loader. Do not replace `orgintel-headquarters-atrium-production.glb`, `orgintel-headquarters-atrium-pass3-review.glb`, or any texture atlas during Pass 4B review.
+KTX2/Basis texture delivery and Meshopt/Draco geometry compression remain future additive optimization work. Existing GLB and PNG assets remain preserved.
 
 ## Coordinate system
 

@@ -1266,38 +1266,28 @@ function boot() {
 
     let atriumLoadFinished = false;
     let atriumSceneAdded = false;
-    const usePass4AtriumReview = params.get('atrium') === 'pass4';
-    const atriumCandidates = usePass4AtriumReview
-      ? [
-        {
-          url: './models/orgintel-headquarters-atrium-pass4-observatory-review.glb',
-          status: 'V6 · Pass 4B Observatory review active',
-          fallbackStatus: 'V5 · Pass 3 PBR atrium active · Pass 4B fallback',
-          label: 'Pass 4B Observatory review atrium'
-        },
-        {
-          url: './models/orgintel-headquarters-atrium-pass3-review.glb',
-          status: 'V5 · Pass 3 PBR atrium active · Pass 4B fallback',
-          label: 'Pass 3 atrium'
-        },
-        {
-          url: './models/orgintel-headquarters-atrium-production.glb',
-          status: 'V4 · production atrium active · Pass 3 fallback',
-          label: 'Pass 2 production atrium'
-        }
-      ]
-      : [
-        {
-          url: './models/orgintel-headquarters-atrium-pass3-review.glb',
-          status: 'V5 · Pass 3 PBR atrium active',
-          label: 'Pass 3 atrium'
-        },
-        {
-          url: './models/orgintel-headquarters-atrium-production.glb',
-          status: 'V4 · production atrium active · Pass 3 fallback',
-          label: 'Pass 2 production atrium'
-        }
-      ];
+    const requestedAtrium = params.get('atrium');
+    const forcePass3Rollback = requestedAtrium === 'pass3';
+    const atriumCandidates = [
+      ...(forcePass3Rollback ? [] : [{
+        url: './models/orgintel-headquarters-atrium-pass4-observatory-review.glb',
+        status: 'V6 · Pass 4 Observatory atrium active',
+        fallbackStatus: 'V5 · Pass 3 PBR atrium active · Pass 4 fallback',
+        label: 'Pass 4 Observatory atrium'
+      }]),
+      {
+        url: './models/orgintel-headquarters-atrium-pass3-review.glb',
+        status: forcePass3Rollback
+          ? 'V5 · Pass 3 PBR atrium active · manual rollback'
+          : 'V5 · Pass 3 PBR atrium active · Pass 4 fallback',
+        label: 'Pass 3 atrium'
+      },
+      {
+        url: './models/orgintel-headquarters-atrium-production.glb',
+        status: 'V4 · production atrium active · Pass 3 fallback',
+        label: 'Pass 2 production atrium'
+      }
+    ];
 
     const finishAtriumAttempt = (ok) => {
       if (atriumLoadFinished) return;
