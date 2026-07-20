@@ -2328,7 +2328,7 @@ function boot() {
   function categoryForProfileObject(object) {
     const name = getProfileName(object);
     if (/Pass4RuntimeContactDepth/i.test(name)) return 'Contact-depth geometry';
-    if (/dust|particle|spark|glow|holo|emissive|bloom|sprite|beam|trail|ring|signal|constellation|star/i.test(name)) return 'Particles and visual effects';
+    if (/dust|particle|spark|glow|holo|emissive|bloom|sprite|trail|signal|constellation|star/i.test(name)) return 'Particles and visual effects';
     if (/founder|\btal\b|hero|character|player|avatar|guide|Intelligence\s*Core/i.test(name)) return 'Characters and hero models';
     if (/portal|station|lesson|archive|decision|proof|observatory|console|PATH_|interactive/i.test(name)) return 'Portals and lesson stations';
     if (/^KIOSK_|kiosk/i.test(name)) return 'Kiosks';
@@ -2342,20 +2342,29 @@ function boot() {
     return 'Other or uncategorized';
   }
   function profileMaterialList(material) { return Array.isArray(material) ? material.filter(Boolean) : material ? [material] : []; }
-  function estimateProfileTriangles(object) {
+  function estimateProfileTriangles(object, item) {
     if (!object || !object.geometry) return 0;
     const geometry = object.geometry;
-    let triangles = 0;
-    if (geometry.index && geometry.index.count) triangles = geometry.index.count / 3;
-    else if (geometry.attributes && geometry.attributes.position) triangles = geometry.attributes.position.count / 3;
-    const groups = Array.isArray(geometry.groups) && geometry.groups.length ? geometry.groups.length : 1;
+    let drawCount = 0;
+    if (item && item.group && Number.isFinite(item.group.count)) {
+      drawCount = item.group.count;
+    } else {
+      const indexedCount = geometry.index && Number.isFinite(geometry.index.count) ? geometry.index.count : 0;
+      const position = geometry.attributes && geometry.attributes.position;
+      const vertexCount = position && Number.isFinite(position.count) ? position.count : 0;
+      const totalCount = indexedCount || vertexCount;
+      const range = geometry.drawRange || {};
+      const rangeStart = Number.isFinite(range.start) ? Math.max(0, range.start) : 0;
+      const rangeCount = Number.isFinite(range.count) ? Math.max(0, range.count) : totalCount;
+      drawCount = Math.max(0, Math.min(totalCount - rangeStart, rangeCount));
+    }
     const multiplier = object.isInstancedMesh ? Math.max(object.count || 0, 1) : 1;
-    return Math.round(triangles * groups * multiplier);
+    return Math.round((drawCount / 3) * multiplier);
   }
   function capturePass5Profile(now) {
     if (!profileDiagnostics.enabled) return null;
     const renderList = renderer.renderLists && renderer.renderLists.get ? renderer.renderLists.get(scene, camera) : null;
-    const renderItems = renderList ? (renderList.opaque || []).concat(renderList.transparent || []) : [];
+    const renderItems = renderList ? (renderList.opaque || []).concat(renderList.transmissive || [], renderList.transparent || []) : [];
     const categories = {};
     profileCategories.forEach((name) => {
       categories[name] = { category: name, estimatedDrawItems: 0, uniqueRenderedObjects: 0, instancedMeshBatches: 0, totalInstances: 0, uniqueMaterials: 0, uniqueGeometries: 0, estimatedRenderedTriangles: 0 };
@@ -2378,7 +2387,7 @@ function boot() {
           if (!seenMaterials[category]) seenMaterials[category] = new Set();
           seenMaterials[category].add(material.id);
         });
-        row.estimatedRenderedTriangles += estimateProfileTriangles(object);
+        row.estimatedRenderedTriangles += estimateProfileTriangles(object, item);
       }
     });
     profileCategories.forEach((name) => {
