@@ -170,6 +170,18 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   font:400 9px var(--mono); color:rgba(143,166,188,.45);
   pointer-events:none;
 }
+.perf-panel {
+  position:fixed; left:14px; bottom:14px; z-index:9; min-width:190px;
+  padding:10px 12px; border:1px solid rgba(var(--accent-rgb),.24); border-radius:14px;
+  background:rgba(6,13,26,.72); color:var(--muted); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  font:400 10px var(--mono); line-height:1.55; pointer-events:none; display:none;
+  box-shadow:0 16px 50px rgba(0,0,0,.36);
+}
+.perf-panel.on { display:block; }
+.perf-panel strong { display:block; margin-bottom:4px; color:var(--accent); font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+.perf-panel .row { display:flex; justify-content:space-between; gap:16px; }
+.perf-panel .value { color:var(--ink); text-align:right; }
+@media (max-width: 640px) { .perf-panel { left:10px; right:10px; bottom:118px; min-width:0; font-size:9.5px; } }
 
 /* ---------- V2 immersive HUD ---------- */
 .crosshair {
@@ -405,6 +417,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 <div class="toast" id="toast" aria-live="polite"></div>
 <div class="cinematic-label" id="cinematicLabel">Cinematic station view</div>
 <div class="asset-credit" id="assetCredit">V3 · procedural fallback · loading production atrium…</div>
+<div class="perf-panel" id="perfPanel" aria-hidden="true"><strong>Performance</strong><div id="perfPanelRows"></div></div>
 <div class="hint" id="hint">WASD to move · click-drag to look · scroll to zoom · two fingers to look/pinch on touch</div>
 
 <div class="tal" id="tal" aria-live="polite"><span class="who">Tal · your guide</span><span id="talMsg"></span></div>
@@ -592,6 +605,7 @@ const tourProgressEl = $('tourProgress'), tourProgressLabel = $('tourProgressLab
 const tourProgressCount = $('tourProgressCount'), tourProgressFill = $('tourProgressFill');
 const interactBtn = $('interactBtn'), interactText = $('interactText'), crosshairEl = $('crosshair');
 const soundBtn = $('soundBtn'), qualityBtn = $('qualityBtn'), toastEl = $('toast');
+const perfPanel = $('perfPanel'), perfPanelRows = $('perfPanelRows');
 const assetStatus = $('assetStatus'), assetStatusText = $('assetStatusText');
 const assetCredit = document.getElementById('assetCredit');
 const cardClose = $('cardClose'), cinematicLabel = $('cinematicLabel');
@@ -636,8 +650,21 @@ function boot() {
     console.warn('Reflection environment unavailable; continuing with direct lighting.', error);
   }
 
-  const isMobile = matchMedia('(max-width: 820px)').matches || /Mobi|Android/i.test(navigator.userAgent);
-  const quality = { mode: 'auto', level: isMobile ? 1 : 2 };
+  const runtimePass4 = { enabled: true, lod: true, contactDepth: true };
+  const params = new URLSearchParams(location.search);
+  if (params.get('pass4') === '0') { runtimePass4.enabled = false; runtimePass4.lod = false; runtimePass4.contactDepth = false; }
+  if (params.get('lod') === '0') runtimePass4.lod = false;
+  if (params.get('contacts') === '0') runtimePass4.contactDepth = false;
+  const deviceTier = (() => {
+    const ua = navigator.userAgent || '';
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    const narrow = matchMedia('(max-width: 760px)').matches;
+    const tablet = /iPad|Tablet/i.test(ua) || (coarse && matchMedia('(min-width: 761px) and (max-width: 1180px)').matches);
+    const phone = /Mobi|Android.*Mobile|iPhone|iPod/i.test(ua) || (coarse && narrow);
+    return phone ? 'mobile phone' : tablet ? 'tablet' : 'desktop';
+  })();
+  const automaticQualityLevel = deviceTier === 'desktop' ? 2 : deviceTier === 'tablet' ? 1 : 0;
+  const quality = { mode: 'auto', level: automaticQualityLevel, deviceTier };
   function applyQuality(level, announce) {
     quality.level = Math.max(0, Math.min(2, level));
     const ratios = [1, Math.min(devicePixelRatio || 1, 1.35), Math.min(devicePixelRatio || 1, 2)];
@@ -1055,14 +1082,68 @@ function boot() {
     });
   }
 
+
+  const atriumLOD = { groups: [], last: 0, interval: 360 };
+  let activeAtriumStatus = 'V3 · procedural fallback · loading production atrium…';
+  let contactDepthSystem = null;
+  function classifyAtriumLOD(name) {
+    if (/^PROP_(BenchSeat|BenchBase)/i.test(name)) return 'furniture';
+    if (/^PROP_(PlantTrunk|PlantCanopy)/i.test(name)) return 'foliage';
+    if (/^PROP_Planter/i.test(name)) return 'planters';
+    if (/^OFFICE_.*_(Desk|Display|Mullion|WarmLight)$/i.test(name)) return 'office dressing';
+    if (/^KIOSK_/i.test(name)) return 'kiosks';
+    if (/balcony/i.test(name) && /(rail|glass|trim)/i.test(name) && !/(deck|floor|stair|portal|path|station)/i.test(name)) return 'balcony details';
+    if (/^CEILING_(Coffer|Practical)/i.test(name)) return 'nonessential ceiling details';
+    return '';
+  }
+  function registerAtriumRuntimeDetails(model) {
+    atriumLOD.groups = [];
+    model.traverse((o) => {
+      if (!o.isMesh) return;
+      const category = classifyAtriumLOD(o.name || '');
+      if (!category) return;
+      o.userData.pass4LOD = { category, visible: true };
+      atriumLOD.groups.push(o);
+    });
+  }
+  function refreshAtriumLOD(force) {
+    if (!runtimePass4.enabled || !runtimePass4.lod || !atriumLOD.groups.length) return;
+    const now = performance.now();
+    if (!force && now - atriumLOD.last < atriumLOD.interval) return;
+    atriumLOD.last = now;
+    const radii = quality.level === 2 ? { on: 92, off: 104 } : quality.level === 1 ? { on: 54, off: 64 } : { on: 30, off: 38 };
+    const px = player.position.x, pz = player.position.z;
+    atriumLOD.groups.forEach((o) => {
+      const world = o.getWorldPosition(new THREE.Vector3());
+      const d = Math.hypot(world.x - px, world.z - pz);
+      const lod = o.userData.pass4LOD;
+      if (lod.visible && d > radii.off) { o.visible = false; lod.visible = false; }
+      else if (!lod.visible && d < radii.on) { o.visible = true; lod.visible = true; }
+    });
+  }
+  function createContactDepthSystem() {
+    const group = new THREE.Group(); group.name = 'Pass4RuntimeContactDepth';
+    const tex = glowTexture('rgba(0,0,0,0.20)', 'rgba(0,0,0,0)');
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.34, depthWrite: false, depthTest: true });
+    const geom = new THREE.PlaneBufferGeometry(1, 1);
+    const high = [[0,0,6,7],[-18,0,4,5],[18,0,4,5],[-32,-18,4,4],[32,-18,4,4],[-24,18,4,4],[24,18,4,4],[0,28,9,4],[0,-32,10,5],[-48,-26,6,4],[48,-26,6,4]];
+    const medium = [[0,0,6,7],[0,28,9,4],[0,-32,10,5],[-18,0,4,5],[18,0,4,5]];
+    const build = (items) => { group.clear(); items.forEach(([x,z,sx,sz]) => { const m = new THREE.Mesh(geom, mat); m.rotation.x = -Math.PI / 2; m.position.set(x, .018, z); m.scale.set(sx, sz, 1); m.raycast = function () {}; group.add(m); }); };
+    group.userData.refresh = () => { group.visible = runtimePass4.enabled && runtimePass4.contactDepth && quality.level > 0; build(quality.level === 2 ? high : medium); };
+    group.userData.refresh(); scene.add(group); return { group, refresh: group.userData.refresh };
+  }
+
   if (THREE.GLTFLoader) {
     const modelLoader = new THREE.GLTFLoader();
 
     const activateAtrium = (gltf, statusText) => {
       const model = gltf.scene;
       prepareProductionAtrium(model);
+      registerAtriumRuntimeDetails(model);
       scene.add(model);
+      refreshAtriumLOD(true);
       proceduralAtriumFallback.visible = false;
+      activeAtriumStatus = statusText;
       assetCredit.textContent = statusText;
       assetFinished(true);
     };
@@ -1743,8 +1824,11 @@ function boot() {
   }
 
   qualityBtn.addEventListener('click', () => {
+    quality.mode = 'manual';
     const next = quality.level === 2 ? 1 : quality.level === 1 ? 0 : 2;
     applyQuality(next, true);
+    if (contactDepthSystem) contactDepthSystem.refresh();
+    refreshAtriumLOD(true);
   });
 
   let audioCtx = null, masterGain = null, soundOn = false;
@@ -2025,6 +2109,22 @@ function boot() {
      Main loop
      ============================================================ */
   const BXc = 62, BZNc = -66, BZSc = 32;
+  contactDepthSystem = createContactDepthSystem();
+  const perfDiagnostics = { enabled: new URLSearchParams(location.search).get('perf') === '1', frames: 0, elapsed: 0, last: 0 };
+  if (perfDiagnostics.enabled) perfPanel.classList.add('on');
+  function updatePerfDiagnostics(dt, now) {
+    if (!perfDiagnostics.enabled) return;
+    perfDiagnostics.frames++; perfDiagnostics.elapsed += dt;
+    if (now - perfDiagnostics.last < 500) return;
+    perfDiagnostics.last = now;
+    const info = renderer.info;
+    const fps = perfDiagnostics.frames / Math.max(perfDiagnostics.elapsed / 1000, 0.001);
+    const avg = perfDiagnostics.elapsed / Math.max(perfDiagnostics.frames, 1);
+    perfDiagnostics.frames = 0; perfDiagnostics.elapsed = 0;
+    const tier = quality.level === 2 ? 'high' : quality.level === 1 ? 'medium' : 'low';
+    const rows = [['FPS', fps.toFixed(0)], ['Avg frame', avg.toFixed(1) + ' ms'], ['Draw calls', info.render.calls], ['Visible triangles', info.render.triangles], ['Textures', info.memory.textures], ['Geometries', info.memory.geometries], ['Quality', tier + (quality.mode === 'manual' ? ' manual' : ' auto')], ['Atrium', activeAtriumStatus]];
+    perfPanelRows.innerHTML = rows.map(([k, v]) => '<div class="row"><span>' + k + '</span><span class="value">' + v + '</span></div>').join('');
+  }
   let raf = null, running = false;
   const clock = { last: 0 };
 
@@ -2128,6 +2228,8 @@ function boot() {
 
     updateAmbient(dt, t);
     updateStations(dt, t);
+    refreshAtriumLOD(false);
+    updatePerfDiagnostics(dt, t);
     updateRaycast();
     if (composer) composer.render();
     else renderer.render(scene, camera);
