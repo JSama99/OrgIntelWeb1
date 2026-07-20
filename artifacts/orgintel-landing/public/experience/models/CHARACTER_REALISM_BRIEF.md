@@ -87,3 +87,77 @@ Runtime file: `artifacts/orgintel-landing/public/experience/index.html`.
 ## Preservation requirements
 
 Future character realism work must preserve all Stage 4–9 lessons, `orgintel-hq-progress-v1`, the guided tour, room gates and unlocks, player controls and boundaries, the existing Hero/Founder GLB, the existing Tal GLB, the Intelligence Core GLB, all atrium GLBs, character coordinates, interaction triggers, reduced-motion behavior, loading progress behavior, the complete atrium fallback chain, all Pass 4 and Pass 5 diagnostics and switches, and the landing page plus `/experience/` route.
+
+---
+
+## C2A Review Asset — Hero Character GLB
+
+**Generated:** 2026-07-20  
+**File:** `./models/orgintel-hero-character-review.glb`  
+**Generator script:** `scripts/generate-hero-character-glb.mjs`  
+**Review URL:** `/experience/?perf=1&hero=review`
+
+### Asset metrics
+
+| Metric | Value |
+|---|---|
+| File size | 336,822 bytes (0.321 MB) |
+| SHA-256 | `ee5bb96613224c904d7b6a869db361ac296c6c77ec9c149e56125599ab49b82e` |
+| glTF validation errors | **0** |
+| Triangle count | **9,066** (budget: 6,000–12,000 ✓) |
+| Node count | 67 |
+| Mesh count | 55 |
+| Material count | 10 |
+| Animation clips | 3 |
+
+### Skeleton nodes (HERO_ prefix)
+
+All named transform nodes carry `HERO_` prefixes. Root is `HERO_Root` at floor origin (y=0). Height ~1.80 scene units. Facing +Z; runtime applies `rotationY = Math.PI`.
+
+```
+HERO_Root
+└── HERO_Hips
+    ├── HERO_Torso
+    │   ├── HERO_Head
+    │   ├── HERO_LeftArm
+    │   │   └── HERO_LeftForearm
+    │   │       └── HERO_LeftHand
+    │   └── HERO_RightArm
+    │       └── HERO_RightForearm
+    │           └── HERO_RightHand
+    ├── HERO_LeftLeg
+    └── HERO_RightLeg
+```
+
+### Embedded animation clips
+
+| Name | Duration |
+|---|---|
+| `Hero_Idle` | 4.0 s |
+| `Hero_Observe` | 2.4 s |
+| `Hero_Console` | 1.5 s |
+
+### Embedded PBR materials (no external textures)
+
+| Material | Role | Metallic | Roughness |
+|---|---|---|---|
+| `skin` | Head, neck, hands — warm dark-brown | 0.0 | 0.70 |
+| `blackFabric` | Jacket, shoulders, sleeves | 0.0 | 0.85 |
+| `darkTrousers` | Thighs, lower legs | 0.0 | 0.80 |
+| `cyanPiping` | Chest/waist bands, sleeve cuffs, boot rings — restrained emissive | 0.0 | 0.40 |
+| `goldAccent` | Collar clasp, chest badge, epaulettes, belt | 0.9 | 0.28 |
+| `bootLeather` | Boot uppers, heels | 0.0 | 0.90 |
+| `hairDark` | Afro hair volume | 0.0 | 0.95 |
+| `eyeWhite` | Sclera | 0.0 | 0.60 |
+| `eyeIris` | Iris | 0.0 | 0.50 |
+| `teethLip` | Lip region | 0.0 | 0.75 |
+
+### Production asset integrity check
+
+| Asset | SHA-256 |
+|---|---|
+| `founder.glb` | `d820636ae9b19e22b4e9379b2bb27258b43501a56d724311ad5c8c04ded7312a` |
+| `tal.glb` | `f124a5c2124acbe806bcc0e2e19f89bb07b187fa1f422d73366e9cb525e12bcb` |
+| `orgintel-headquarters-atrium-production.glb` | `b74ea013b1aeae9278d4f781ceeadea4ec742ff981052d24134fdfe6168d0cae` |
+
+All three production assets confirmed byte-for-byte unchanged. `git diff --check` passes clean.
