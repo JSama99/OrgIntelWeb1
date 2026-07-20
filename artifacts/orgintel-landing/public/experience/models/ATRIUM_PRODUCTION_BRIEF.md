@@ -227,6 +227,81 @@ Observed before adding Pass 5A profiling:
 - 12 instance batches
 - 270 source meshes consolidated
 
+
+## Pass 5B uncategorized signature audit and batching-candidate inventory
+
+Pass 5B extends the opt-in Pass 5 profiler as a text-only diagnostic audit. Its purpose is to explain the remaining `Other or uncategorized` render-call bucket and rank repeated geometry/material signatures that may warrant a later batching review. Pass 5B performs no batching, adds no render passes, changes no binary assets, and does not mutate scene structure, visibility, materials, geometry, LOD, instancing, rendering order, or interaction behavior.
+
+### Representative production baseline after Pass 5A
+
+At one representative production camera position after Pass 5A was merged and active through PR #22, the measured profile was:
+
+- 60 FPS
+- 16.7 ms average frame
+- 658 total GPU draw calls
+- 644 categorized main-scene calls
+- 14 residual calls
+- 52,806 rendered triangles
+- 340 Other/uncategorized calls
+- 85 Portals and lesson stations
+- 65 Furniture
+- 48 Particles and visual effects
+- 28 Foliage
+- 21 Ceiling details
+- 20 Office dressing
+- 14 Planters
+- 10 Balcony details
+
+Existing Pass 5A category totals continue to reconcile by comparing `renderer.info.render.calls`, categorized main-scene render items, and postprocessing/residual calls.
+
+### Signature aggregation fields
+
+When `?profile=1` is present, each instrumented main-scene `renderer.renderBufferDirect` call contributes to `window.__orgintelPass5Profile.signatures`, sorted by descending draw-call count. The same profile object also exposes `window.__orgintelPass5Profile.uncategorizedSignatures` for the subset still classified as `Other or uncategorized`, and `window.__orgintelPass5Profile.repeatedGeometryMaterialSignatures` for repeated geometry/material combinations across all categories.
+
+Each signature records diagnostic evidence for:
+
+- Category
+- Geometry ID and display name
+- Material ID and display name
+- Object display name
+- Parent and ancestor names
+- Object type
+- Unique rendered object count
+- Draw-call count
+- Existing `InstancedMesh` status and instance count
+- `SkinnedMesh` status
+- Morph-target status
+- Geometry group summary
+- Transparency/material-opacity indicators
+- Render order
+- LOD ancestry
+- Interactive, portal, lesson, path, kiosk, collision, or station ancestry
+- Static-transform indicators
+- Sample object and ancestor names for console inspection
+
+The profiler prints three opt-in tables approximately every 1.5 seconds: the existing category summary, the top 25 uncategorized signatures, and the top 25 repeated geometry/material signatures ranked by draw-call contribution.
+
+### Conservative batching-candidate rules
+
+Pass 5B recommendations are diagnostic only and are intentionally conservative:
+
+- `Already instanced` if the repeated signature is already represented by an `InstancedMesh`.
+- `Not suitable: skinned or morph-targeted` if any member is skinned or has morph targets.
+- `Requires interaction review` if any member belongs to portal, lesson, station, path, kiosk, collision, or interactive ancestry/metadata.
+- `Requires LOD review` if any member belongs to an LOD hierarchy or LOD-named ancestry.
+- `Requires material review` if transparency is present or material/render-order variants are detected.
+- `Likely safe batching candidate` only when the geometry/material signature repeats across multiple rendered objects, static-transform evidence is true, and none of the above exclusion signals are present.
+- `Insufficient evidence: transform may update` when no stronger exclusion applies but the collected static-transform indicator is false.
+- `Insufficient evidence` when the observed signature is not repeated or the collected data is not strong enough to support a later batching proposal.
+
+The profiler must not automatically mark a candidate safe when it is skinned, morph-targeted, part of a portal or lesson interaction, part of an LOD hierarchy, has material or render-order differences, has a false static-transform indicator that requires further review, or lacks repeated geometry/material evidence.
+
+### Measurement limitations
+
+Pass 5B remains a frame-level instrumentation aid, not a GPU-driver trace. It wraps Three.js `renderer.renderBufferDirect` only when `?profile=1` is enabled, records calls made during the existing normal frame render, and finalizes immediately afterward. Main-scene membership is inferred by parent-chain ancestry to the OrgIntel scene. Shadow draws from main-scene objects may still be attributed to those objects, while postprocessing, renderer-internal work, and non-main-scene objects remain reconciled through the residual bucket.
+
+Signature names are diagnostic heuristics derived from runtime object, geometry, material, parent, and ancestor data. Multi-material meshes, geometry groups, transparent sorting, EffectComposer passes, shadow work, object reuse, browser behavior, and GPU-driver behavior can affect exact attribution. For this reason, Pass 5B identifies candidates for human review only; implementation of any deeper batching remains a separate future pass.
+
 ## Coordinate system
 
 - Units: meters
