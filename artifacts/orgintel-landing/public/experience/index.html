@@ -2321,6 +2321,93 @@ function boot() {
     renderer.info.autoReset = false;
     window.__orgintelPass5Profile = null;
   }
+  function profileDisplayName(item, fallback) {
+    if (!item) return fallback;
+    const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : '';
+    const id = Number.isFinite(item.id) ? item.id : 'none';
+    return name ? name + ' #' + id : fallback + ' #' + id;
+  }
+  function profileAncestorNames(object) {
+    const names = [];
+    let current = object ? object.parent : null;
+    while (current) {
+      if (current.name) names.push(current.name);
+      if (current === scene) break;
+      current = current.parent;
+    }
+    return names;
+  }
+  function profileHasLODAncestry(object) {
+    let current = object;
+    while (current) {
+      if (current.isLOD || /\bLOD\b|_LOD/i.test(current.name || '')) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+  function profileHasInteractiveAncestry(object) {
+    let current = object;
+    while (current) {
+      const data = current.userData || {};
+      if (data.roomId || data.roomLabel || data.interactiveReserved || data.walkable || data.collision) return true;
+      if (/portal|station|lesson|archive|decision|proof|observatory|console|PATH_|interactive|KIOSK_|COL_/i.test(current.name || '')) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+  function profileHasStaticTransform(object) {
+    if (!object) return false;
+    return !object.matrixAutoUpdate && !object.userData.animated && !object.animations;
+  }
+  function profileGroupSummary(geometry, group) {
+    if (!geometry) return 'none';
+    const groupCount = geometry.groups && geometry.groups.length ? geometry.groups.length : 0;
+    if (!group) return String(groupCount);
+    const start = Number.isFinite(group.start) ? group.start : 0;
+    const count = Number.isFinite(group.count) ? group.count : 'all';
+    const materialIndex = Number.isFinite(group.materialIndex) ? group.materialIndex : 0;
+    return groupCount + ' groups; active ' + start + '/' + count + '/mat' + materialIndex;
+  }
+  function createProfileSignatureRow(category, geometry, material, object, group) {
+    const materials = profileMaterialList(material || (object && object.material));
+    const primaryMaterial = materials[0] || null;
+    const ancestorNames = profileAncestorNames(object);
+    const transparent = materials.some((item) => !!(item && (item.transparent || item.opacity < 1 || item.transmission > 0)));
+    return {
+      key: [category, geometry ? geometry.id : 'none', primaryMaterial ? primaryMaterial.id : 'none', object ? object.type : 'unknown', profileGroupSummary(geometry, group), object ? object.renderOrder || 0 : 0].join('|'),
+      category,
+      geometryId: geometry ? geometry.id : null,
+      geometryName: profileDisplayName(geometry, 'Geometry'),
+      materialId: primaryMaterial ? primaryMaterial.id : null,
+      materialName: profileDisplayName(primaryMaterial, 'Material'),
+      objectType: object ? object.type : 'unknown',
+      objectName: profileDisplayName(object, 'Object'),
+      parentName: object && object.parent ? profileDisplayName(object.parent, 'Parent') : 'none',
+      ancestorNames,
+      objectNames: new Set(object && object.name ? [object.name] : []),
+      uniqueObjectIds: new Set(object ? [object.id] : []),
+      drawCalls: 0,
+      instancedMesh: !!(object && object.isInstancedMesh),
+      instanceCount: object && object.isInstancedMesh ? object.count || 0 : 0,
+      skinnedMesh: !!(object && object.isSkinnedMesh),
+      morphTargets: !!(object && object.morphTargetInfluences && object.morphTargetInfluences.length),
+      geometryGroups: profileGroupSummary(geometry, group),
+      transparent,
+      renderOrder: object ? object.renderOrder || 0 : 0,
+      lodAncestry: profileHasLODAncestry(object),
+      interactiveOrPortalAncestry: profileHasInteractiveAncestry(object),
+      staticTransform: profileHasStaticTransform(object)
+    };
+  }
+  function profileRecommendation(signature) {
+    if (signature.skinnedMesh || signature.morphTargets) return 'Not suitable: skinned or morph-targeted';
+    if (signature.instancedMesh) return 'Already instanced';
+    if (signature.interactiveOrPortalAncestry) return 'Requires interaction review';
+    if (signature.lodAncestry) return 'Requires LOD review';
+    if (signature.transparent || signature.materialVariantCount > 1 || signature.renderOrderVariantCount > 1) return 'Requires material review';
+    if (signature.drawCalls > 1 && signature.uniqueRenderedObjectCount > 1) return 'Likely safe batching candidate';
+    return 'Insufficient evidence';
+  }
   function getProfileName(object) {
     const names = [];
     let current = object;
@@ -2387,7 +2474,9 @@ function boot() {
       seenInstancedMeshes: {},
       categorizedMainSceneCalls: 0,
       instrumentedResidualCalls: 0,
-      residualTriangles: 0
+      residualTriangles: 0,
+      signaturesByKey: {},
+      repeatedByKey: {}
     };
   }
   function recordPass5ProfileCall(geometry, material, object, group) {
@@ -2421,6 +2510,41 @@ function boot() {
       frame.seenMaterials[category].add(profileMaterial.id);
     });
     row.estimatedRenderedTriangles += estimateProfileTriangles(geometry, object, group);
+    const signature = createProfileSignatureRow(category, geometry, material, object, group);
+    let stored = frame.signaturesByKey[signature.key];
+    if (!stored) stored = frame.signaturesByKey[signature.key] = signature;
+    stored.drawCalls++;
+    if (object) {
+      stored.uniqueObjectIds.add(object.id);
+      if (object.name) stored.objectNames.add(object.name);
+    }
+    stored.instancedMesh = stored.instancedMesh || signature.instancedMesh;
+    stored.instanceCount = Math.max(stored.instanceCount, signature.instanceCount);
+    stored.skinnedMesh = stored.skinnedMesh || signature.skinnedMesh;
+    stored.morphTargets = stored.morphTargets || signature.morphTargets;
+    stored.transparent = stored.transparent || signature.transparent;
+    stored.lodAncestry = stored.lodAncestry || signature.lodAncestry;
+    stored.interactiveOrPortalAncestry = stored.interactiveOrPortalAncestry || signature.interactiveOrPortalAncestry;
+    stored.staticTransform = stored.staticTransform && signature.staticTransform;
+    const repeatedKey = [geometry ? geometry.id : 'none', profileMaterialList(material || (object && object.material)).map((item) => item.id).join(',') || 'none'].join('|');
+    let repeated = frame.repeatedByKey[repeatedKey];
+    if (!repeated) repeated = frame.repeatedByKey[repeatedKey] = Object.assign({}, signature, { key: repeatedKey, categories: new Set(), renderOrders: new Set(), materialIds: new Set(), uniqueObjectIds: new Set(), objectNames: new Set(), drawCalls: 0 });
+    repeated.drawCalls++;
+    repeated.categories.add(category);
+    repeated.renderOrders.add(object ? object.renderOrder || 0 : 0);
+    profileMaterialList(material || (object && object.material)).forEach((item) => { if (item) repeated.materialIds.add(item.id); });
+    if (object) {
+      repeated.uniqueObjectIds.add(object.id);
+      if (object.name) repeated.objectNames.add(object.name);
+    }
+    repeated.instancedMesh = repeated.instancedMesh || signature.instancedMesh;
+    repeated.instanceCount = Math.max(repeated.instanceCount, signature.instanceCount);
+    repeated.skinnedMesh = repeated.skinnedMesh || signature.skinnedMesh;
+    repeated.morphTargets = repeated.morphTargets || signature.morphTargets;
+    repeated.transparent = repeated.transparent || signature.transparent;
+    repeated.lodAncestry = repeated.lodAncestry || signature.lodAncestry;
+    repeated.interactiveOrPortalAncestry = repeated.interactiveOrPortalAncestry || signature.interactiveOrPortalAncestry;
+    repeated.staticTransform = repeated.staticTransform && signature.staticTransform;
   }
   function finalizePass5Profile(now) {
     if (!profileDiagnostics.enabled || !profileDiagnostics.frame) return null;
@@ -2430,15 +2554,38 @@ function boot() {
       frame.categories[name].uniqueMaterials = frame.seenMaterials[name] ? frame.seenMaterials[name].size : 0;
       frame.categories[name].uniqueGeometries = frame.seenGeometries[name] ? frame.seenGeometries[name].size : 0;
     });
+    const materializeSignature = (signature) => {
+      const result = Object.assign({}, signature, {
+        uniqueRenderedObjectCount: signature.uniqueObjectIds ? signature.uniqueObjectIds.size : 0,
+        objectNameSamples: signature.objectNames ? Array.from(signature.objectNames).slice(0, 5) : [],
+        ancestorNameSamples: signature.ancestorNames ? signature.ancestorNames.slice(0, 8) : [],
+        categoryList: signature.categories ? Array.from(signature.categories) : [signature.category],
+        materialVariantCount: signature.materialIds ? signature.materialIds.size : 1,
+        renderOrderVariantCount: signature.renderOrders ? signature.renderOrders.size : 1
+      });
+      delete result.uniqueObjectIds;
+      delete result.objectNames;
+      delete result.categories;
+      delete result.materialIds;
+      delete result.renderOrders;
+      result.recommendation = profileRecommendation(result);
+      return result;
+    };
+    const signatures = Object.values(frame.signaturesByKey).map(materializeSignature).sort((a, b) => b.drawCalls - a.drawCalls);
+    const repeatedGeometryMaterialSignatures = Object.values(frame.repeatedByKey).map(materializeSignature).filter((signature) => signature.drawCalls > 1).sort((a, b) => b.drawCalls - a.drawCalls);
+    const uncategorizedSignatures = signatures.filter((signature) => signature.category === 'Other or uncategorized');
     const totalDrawCalls = renderer.info.render.calls;
     const residualCalls = totalDrawCalls - frame.categorizedMainSceneCalls;
     frame.categories['Postprocessing/residual calls'] = { category: 'Postprocessing/residual calls', estimatedDrawItems: residualCalls, uniqueRenderedObjects: null, instancedMeshBatches: null, totalInstances: null, uniqueMaterials: null, uniqueGeometries: null, estimatedRenderedTriangles: frame.residualTriangles };
     const latest = {
       enabled: true,
       generatedAtMs: Math.round(now),
-      note: 'Pass 5A instruments renderer.renderBufferDirect during the normal frame render. Main-scene categories are estimates for renderBufferDirect calls whose object parent chain reaches the OrgIntel scene; residual calls reconcile renderer.info.render.calls with categorized main-scene calls and include postprocessing, renderer-internal, or non-main-scene work. Shadow draws from objects in the OrgIntel scene may be attributed to that object category.',
+      note: 'Pass 5B extends Pass 5A renderBufferDirect profiling with opt-in signature aggregation for uncategorized-call audit and conservative batching-candidate inventory. It performs no batching and makes no scene mutations.',
       totals: { rendererDrawCalls: totalDrawCalls, categorizedSceneDrawItems: frame.categorizedMainSceneCalls, postprocessingResidualCalls: residualCalls, instrumentedResidualCalls: frame.instrumentedResidualCalls, rendererTriangles: renderer.info.render.triangles },
-      categories: frame.categories
+      categories: frame.categories,
+      signatures,
+      uncategorizedSignatures,
+      repeatedGeometryMaterialSignatures
     };
     profileDiagnostics.latest = latest;
     window.__orgintelPass5Profile = latest;
@@ -2453,6 +2600,29 @@ function boot() {
         uniqueMaterials: row.uniqueMaterials,
         uniqueGeometries: row.uniqueGeometries,
         estimatedRenderedTriangles: row.estimatedRenderedTriangles
+      })));
+      console.table(uncategorizedSignatures.slice(0, 25).map((signature) => ({
+        drawCalls: signature.drawCalls,
+        uniqueObjects: signature.uniqueRenderedObjectCount,
+        sampleNames: signature.objectNameSamples.concat(signature.ancestorNameSamples).slice(0, 6).join(' > '),
+        geometry: signature.geometryName,
+        material: signature.materialName,
+        objectType: signature.objectType,
+        existingInstancing: signature.instancedMesh ? 'yes (' + signature.instanceCount + ')' : 'no',
+        lodInvolvement: signature.lodAncestry ? 'yes' : 'no',
+        interactionInvolvement: signature.interactiveOrPortalAncestry ? 'yes' : 'no'
+      })));
+      console.table(repeatedGeometryMaterialSignatures.slice(0, 25).map((signature) => ({
+        drawCalls: signature.drawCalls,
+        uniqueObjects: signature.uniqueRenderedObjectCount,
+        categories: signature.categoryList.join(', '),
+        geometry: signature.geometryName,
+        material: signature.materialName,
+        objectType: signature.objectType,
+        existingInstancing: signature.instancedMesh ? 'yes (' + signature.instanceCount + ')' : 'no',
+        lodInvolvement: signature.lodAncestry ? 'yes' : 'no',
+        interactionInvolvement: signature.interactiveOrPortalAncestry ? 'yes' : 'no',
+        recommendation: signature.recommendation
       })));
     }
     profileDiagnostics.frame = null;
