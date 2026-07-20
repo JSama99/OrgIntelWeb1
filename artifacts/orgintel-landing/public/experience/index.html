@@ -2303,10 +2303,19 @@ function boot() {
     'Contact-depth geometry',
     'Other or uncategorized'
   ];
+  function createProfileCategoryRows() {
+    const rows = {};
+    profileCategories.forEach((name) => {
+      rows[name] = { category: name, estimatedDrawItems: 0, uniqueRenderedObjects: 0, instancedMeshBatches: 0, totalInstances: 0, uniqueMaterials: 0, uniqueGeometries: 0, estimatedRenderedTriangles: 0 };
+    });
+    return rows;
+  }
   const profileDiagnostics = {
     enabled: profileDiagnosticsEnabled,
     tableLast: 0,
-    latest: null
+    latest: null,
+    frame: null,
+    originalRenderBufferDirect: renderer.renderBufferDirect
   };
   if (profileDiagnostics.enabled) {
     renderer.info.autoReset = false;
@@ -2342,12 +2351,19 @@ function boot() {
     return 'Other or uncategorized';
   }
   function profileMaterialList(material) { return Array.isArray(material) ? material.filter(Boolean) : material ? [material] : []; }
-  function estimateProfileTriangles(object, item) {
-    if (!object || !object.geometry) return 0;
-    const geometry = object.geometry;
+  function isProfileMainSceneObject(object) {
+    let current = object;
+    while (current) {
+      if (current === scene) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+  function estimateProfileTriangles(geometry, object, group) {
+    if (!geometry) return 0;
     let drawCount = 0;
-    if (item && item.group && Number.isFinite(item.group.count)) {
-      drawCount = item.group.count;
+    if (group && Number.isFinite(group.count)) {
+      drawCount = group.count;
     } else {
       const indexedCount = geometry.index && Number.isFinite(geometry.index.count) ? geometry.index.count : 0;
       const position = geometry.attributes && geometry.attributes.position;
@@ -2358,59 +2374,69 @@ function boot() {
       const rangeCount = Number.isFinite(range.count) ? Math.max(0, range.count) : totalCount;
       drawCount = Math.max(0, Math.min(totalCount - rangeStart, rangeCount));
     }
-    const multiplier = object.isInstancedMesh ? Math.max(object.count || 0, 1) : 1;
+    const multiplier = object && object.isInstancedMesh ? Math.max(object.count || 0, 1) : 1;
     return Math.round((drawCount / 3) * multiplier);
   }
-  function capturePass5Profile(now) {
-    if (!profileDiagnostics.enabled) return null;
-    const renderList = renderer.renderLists && renderer.renderLists.get ? renderer.renderLists.get(scene, camera) : null;
-    const renderItems = renderList ? (renderList.opaque || []).concat(renderList.transmissive || [], renderList.transparent || []) : [];
-    const categories = {};
+  function resetPass5ProfileFrame() {
+    if (!profileDiagnostics.enabled) return;
+    profileDiagnostics.frame = {
+      categories: createProfileCategoryRows(),
+      seenObjects: {},
+      seenMaterials: {},
+      seenGeometries: {},
+      categorizedMainSceneCalls: 0,
+      instrumentedResidualCalls: 0,
+      residualTriangles: 0
+    };
+  }
+  function recordPass5ProfileCall(geometry, material, object, group) {
+    const frame = profileDiagnostics.frame;
+    if (!profileDiagnostics.enabled || !frame) return;
+    if (!isProfileMainSceneObject(object)) {
+      frame.instrumentedResidualCalls++;
+      frame.residualTriangles += estimateProfileTriangles(geometry, object, group);
+      return;
+    }
+    const category = categoryForProfileObject(object);
+    const row = frame.categories[category] || frame.categories['Other or uncategorized'];
+    row.estimatedDrawItems++;
+    frame.categorizedMainSceneCalls++;
+    if (!frame.seenObjects[category]) frame.seenObjects[category] = new Set();
+    frame.seenObjects[category].add(object.id);
+    if (object && object.isInstancedMesh) { row.instancedMeshBatches++; row.totalInstances += object.count || 0; }
+    if (geometry) {
+      if (!frame.seenGeometries[category]) frame.seenGeometries[category] = new Set();
+      frame.seenGeometries[category].add(geometry.id);
+    }
+    profileMaterialList(material || (object && object.material)).forEach((profileMaterial) => {
+      if (!frame.seenMaterials[category]) frame.seenMaterials[category] = new Set();
+      frame.seenMaterials[category].add(profileMaterial.id);
+    });
+    row.estimatedRenderedTriangles += estimateProfileTriangles(geometry, object, group);
+  }
+  function finalizePass5Profile(now) {
+    if (!profileDiagnostics.enabled || !profileDiagnostics.frame) return null;
+    const frame = profileDiagnostics.frame;
     profileCategories.forEach((name) => {
-      categories[name] = { category: name, estimatedDrawItems: 0, uniqueRenderedObjects: 0, instancedMeshBatches: 0, totalInstances: 0, uniqueMaterials: 0, uniqueGeometries: 0, estimatedRenderedTriangles: 0 };
+      frame.categories[name].uniqueRenderedObjects = frame.seenObjects[name] ? frame.seenObjects[name].size : 0;
+      frame.categories[name].uniqueMaterials = frame.seenMaterials[name] ? frame.seenMaterials[name].size : 0;
+      frame.categories[name].uniqueGeometries = frame.seenGeometries[name] ? frame.seenGeometries[name].size : 0;
     });
-    const seenObjects = {}, seenMaterials = {}, seenGeometries = {};
-    renderItems.forEach((item) => {
-      const object = item.object;
-      const category = categoryForProfileObject(object);
-      const row = categories[category] || categories['Other or uncategorized'];
-      row.estimatedDrawItems++;
-      if (object) {
-        if (!seenObjects[category]) seenObjects[category] = new Set();
-        seenObjects[category].add(object.id);
-        if (object.isInstancedMesh) { row.instancedMeshBatches++; row.totalInstances += object.count || 0; }
-        if (object.geometry) {
-          if (!seenGeometries[category]) seenGeometries[category] = new Set();
-          seenGeometries[category].add(object.geometry.id);
-        }
-        profileMaterialList(object.material).forEach((material) => {
-          if (!seenMaterials[category]) seenMaterials[category] = new Set();
-          seenMaterials[category].add(material.id);
-        });
-        row.estimatedRenderedTriangles += estimateProfileTriangles(object, item);
-      }
-    });
-    profileCategories.forEach((name) => {
-      categories[name].uniqueRenderedObjects = seenObjects[name] ? seenObjects[name].size : 0;
-      categories[name].uniqueMaterials = seenMaterials[name] ? seenMaterials[name].size : 0;
-      categories[name].uniqueGeometries = seenGeometries[name] ? seenGeometries[name].size : 0;
-    });
-    const categorizedDrawItems = renderItems.length;
     const totalDrawCalls = renderer.info.render.calls;
-    const residualCalls = totalDrawCalls - categorizedDrawItems;
-    categories['Postprocessing/residual calls'] = { category: 'Postprocessing/residual calls', estimatedDrawItems: residualCalls, uniqueRenderedObjects: null, instancedMeshBatches: null, totalInstances: null, uniqueMaterials: null, uniqueGeometries: null, estimatedRenderedTriangles: null };
+    const residualCalls = totalDrawCalls - frame.categorizedMainSceneCalls;
+    frame.categories['Postprocessing/residual calls'] = { category: 'Postprocessing/residual calls', estimatedDrawItems: residualCalls, uniqueRenderedObjects: null, instancedMeshBatches: null, totalInstances: null, uniqueMaterials: null, uniqueGeometries: null, estimatedRenderedTriangles: frame.residualTriangles };
     const latest = {
       enabled: true,
       generatedAtMs: Math.round(now),
-      note: 'Three.js render-list counts are estimates for rendered scene items, not exact low-level GPU attribution. Residual calls are renderer.info.render.calls minus categorized render-list items and usually include postprocessing or renderer-internal work.',
-      totals: { rendererDrawCalls: totalDrawCalls, categorizedSceneDrawItems: categorizedDrawItems, postprocessingResidualCalls: residualCalls, rendererTriangles: renderer.info.render.triangles },
-      categories
+      note: 'Pass 5A instruments renderer.renderBufferDirect during the normal frame render. Main-scene categories are estimates for renderBufferDirect calls whose object parent chain reaches the OrgIntel scene; residual calls reconcile renderer.info.render.calls with categorized main-scene calls and include postprocessing, renderer-internal, shadow, or non-main-scene work.',
+      totals: { rendererDrawCalls: totalDrawCalls, categorizedSceneDrawItems: frame.categorizedMainSceneCalls, postprocessingResidualCalls: residualCalls, instrumentedResidualCalls: frame.instrumentedResidualCalls, rendererTriangles: renderer.info.render.triangles },
+      categories: frame.categories
     };
     profileDiagnostics.latest = latest;
     window.__orgintelPass5Profile = latest;
     if (now - profileDiagnostics.tableLast > 1500) {
       profileDiagnostics.tableLast = now;
-      console.table(Object.values(categories).map((row) => ({
+      console.table(Object.values(frame.categories).map((row) => ({
         category: row.category,
         estimatedDrawItems: row.estimatedDrawItems,
         uniqueRenderedObjects: row.uniqueRenderedObjects,
@@ -2421,7 +2447,14 @@ function boot() {
         estimatedRenderedTriangles: row.estimatedRenderedTriangles
       })));
     }
+    profileDiagnostics.frame = null;
     return latest;
+  }
+  if (profileDiagnostics.enabled && typeof profileDiagnostics.originalRenderBufferDirect === 'function') {
+    renderer.renderBufferDirect = function () {
+      recordPass5ProfileCall(arguments[2], arguments[3], arguments[4], arguments[5]);
+      return profileDiagnostics.originalRenderBufferDirect.apply(renderer, arguments);
+    };
   }
   if (perfDiagnostics.enabled) {
     perfPanel.classList.add('on');
@@ -2570,9 +2603,10 @@ function boot() {
     refreshAtriumLOD(false);
     updateRaycast();
     beginPerfDiagnosticsFrame();
+    resetPass5ProfileFrame();
     if (composer) composer.render();
     else renderer.render(scene, camera);
-    capturePass5Profile(t);
+    finalizePass5Profile(t);
     capturePerfDiagnosticsFrame(rawFrameMs);
     updatePerfDiagnosticsPanel(t);
     raf = requestAnimationFrame(frame);

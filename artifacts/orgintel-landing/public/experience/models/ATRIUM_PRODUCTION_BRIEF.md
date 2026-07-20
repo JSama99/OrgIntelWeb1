@@ -184,13 +184,13 @@ Pass 5A is a text-only diagnostic pass for understanding the remaining productio
 
 ### Profiling switch
 
-Use `?profile=1` to enable the Pass 5A profiler. It can run by itself or alongside performance diagnostics, for example `/experience/?perf=1&profile=1`. The existing `?perf=1` panel is unchanged when `?profile=1` is absent. When both switches are present, the normal performance panel gains only a compact profile summary showing estimated scene render-list items and postprocessing/residual calls.
+Use `?profile=1` to enable the Pass 5A profiler. It can run by itself or alongside performance diagnostics, for example `/experience/?perf=1&profile=1`. The existing `?perf=1` panel is unchanged when `?profile=1` is absent. When both switches are present, the normal performance panel gains only a compact profile summary showing estimated main-scene render calls and postprocessing/residual calls.
 
 The latest structured profiler result is exposed at `window.__orgintelPass5Profile`. When profiling is enabled, the runtime prints a readable `console.table` summary approximately every 1.5 seconds.
 
 ### Category definitions
 
-Pass 5A categorizes completed Three.js render-list items by rendered object, ancestor names, and material names using these diagnostic buckets:
+Pass 5A categorizes instrumented `renderer.renderBufferDirect` calls by rendered object, ancestor names, and material names using these diagnostic buckets:
 
 - Atrium architecture: floors, walls, columns, stairs, structural glass, facade, lobby grids, dais/trim, and other architectural shell geometry.
 - Office dressing: office bays, workstations, desks, displays, monitors, mullions, and warm practical office-light surfaces.
@@ -202,16 +202,16 @@ Pass 5A categorizes completed Three.js render-list items by rendered object, anc
 - Ceiling details: ceiling coffers, practicals, skylight/roof/cornice details, and ceiling trim.
 - Portals and lesson stations: portals, paths, station/lesson geometry, room labels, interactive station props, and the operational-console journey geometry.
 - Characters and hero models: player/avatar, Tal/guide, founder/character assets, hero models, and Intelligence Core character/hero naming.
-- Particles and visual effects: dust, particles, sprites, glow cards, holograms, beams, trails, signal/constellation/star effects, emissive/bloom-adjacent visual helpers.
+- Particles and visual effects: dust, particles, sprites, glow cards, holograms, light trails, signal/constellation/star effects, emissive/bloom-adjacent visual helpers.
 - Contact-depth geometry: Pass 4 runtime contact-depth planes and their instanced batch.
 - Other or uncategorized: any rendered item that does not match the above name/material heuristics.
-- Postprocessing/residual calls: `renderer.info.render.calls` minus categorized render-list items. This bucket reconciles categorized scene estimates with the renderer-reported total and usually represents postprocessing or renderer-internal work.
+- Postprocessing/residual calls: `renderer.info.render.calls` minus categorized main-scene `renderBufferDirect` calls. This bucket reconciles categorized scene estimates with the renderer-reported total and usually represents postprocessing, renderer-internal, shadow, or other non-main-scene work.
 
 ### Measurement limitations
 
-All Pass 5A category counts are estimates. The profiler inspects Three.js completed render lists after the normal frame render, so it reports rendered scene items rather than exact low-level GPU command attribution. Multi-material geometries, transparent sorting, shadow-map work, EffectComposer passes, renderer-internal work, and browser/GPU driver behavior can make renderer draw-call totals differ from categorized scene render-list counts. For that reason, the residual bucket is always labeled as postprocessing/residual and the profile note explicitly documents the limitation.
+All Pass 5A category counts are estimates. The profiler wraps Three.js `renderer.renderBufferDirect` only when `?profile=1` is enabled, resets accumulators immediately before the normal frame render, records calls made during that existing render, and finalizes the profile immediately afterward. Main-scene calls are identified by walking each object parent chain back to the OrgIntel scene; calls from internal postprocessing scenes or objects outside that parent chain are treated as residual. Multi-material geometries, transparent sorting, shadow-map work, EffectComposer passes, renderer-internal work, and browser/GPU driver behavior can still limit exact low-level GPU attribution. For that reason, the residual bucket is always labeled as postprocessing/residual and reconciles categorized main-scene calls with `renderer.info.render.calls`.
 
-The profiler reports, where available, estimated rendered draw items, unique rendered objects, instanced mesh batches, total instances, unique materials, unique geometries, and estimated rendered triangles per category. Opaque, transmissive, and transparent render-list items are included so glass is categorized with scene geometry rather than pushed into residual calls. Instanced meshes are counted as one rendered item/batch with their instance count recorded separately. Triangle estimates are derived per render-list item from the item group when available, or from geometry draw ranges/index/position counts as a fallback, then multiplied by instance count for `InstancedMesh` objects.
+The profiler reports, where available, estimated rendered draw items, unique rendered objects, instanced mesh batches, total instances, unique materials, unique geometries, and estimated rendered triangles per category. Because instrumentation happens at `renderBufferDirect`, opaque, transmissive, and transparent scene calls are captured without relying on completed render-list availability. Instanced meshes are counted as one rendered item/batch with their instance count recorded separately. Triangle estimates are derived from the supplied geometry and group arguments when available, or from geometry draw ranges/index/position counts as a fallback, then multiplied by instance count for `InstancedMesh` objects.
 
 ### Production Safari-on-Mac baseline before Pass 5A
 
