@@ -1,12 +1,12 @@
 # OrgIntel Headquarters Atrium Environment
 
-## Graybox production brief
+## Production brief
 
 This directory contains two validated assets and reserves a third isolated review asset:
 
 - `orgintel-headquarters-atrium-graybox.glb` — locked scale and layout reference.
 - `orgintel-headquarters-atrium-production.glb` — production pass 2 with detailed architecture, expanded PBR material families, an embedded runtime base-color atlas, and live experience integration.
-- `orgintel-headquarters-atrium-pass3-review.glb` — reserved Pass 3 review output. It must not replace the production GLB before validation and live-integration approval.
+- `orgintel-headquarters-atrium-pass3-review.glb` — validated Pass 3 PBR atrium and current primary live environment.
 
 The graybox establishes navigation clearances, scale, and room placement. Production pass 1 adds two occupied balcony levels, office bays, architectural glass, stairs, floor inlays, ceiling coffers, portal depth, central-core detailing, practical fixtures, and environmental dressing. The production atrium is now connected to the live `/experience/` route through `experience/index.html`, with the procedural atrium retained as a fallback.
 
@@ -19,21 +19,21 @@ The graybox establishes navigation clearances, scale, and room placement. Produc
 - Furniture and planting silhouettes: implemented
 - Embedded 1024 × 1024 base-color material atlas: implemented in the runtime GLB
 - External atlas PNG as generator source: retained
-- Normal and combined occlusion/roughness/metallic maps: pending
+- Normal and combined occlusion/roughness/metallic maps: implemented and validated in Pass 3
 - Nine bounded, non-shadow-casting `KHR_lights_punctual` lights: implemented
 - Baked lightmaps and reflection probes: pending
-- Desktop/mobile LODs and geometry compression: pending
+- Runtime quality tiers and conservative distance visibility: Pass 4A runtime foundation implemented; geometry compression remains future additive review
 - Live experience integration: implemented
 
 ## Live experience integration
 
-`artifacts/orgintel-landing/public/experience/index.html` loads `./models/orgintel-headquarters-atrium-production.glb` as the primary environment GLB. The production atrium is added at the scene origin with identity rotation and scale `1`, and the previous procedural environment is grouped as `ProceduralAtriumFallback`.
+`artifacts/orgintel-landing/public/experience/index.html` loads `./models/orgintel-headquarters-atrium-pass3-review.glb` as the primary environment GLB, then falls back to `./models/orgintel-headquarters-atrium-production.glb`, then keeps `ProceduralAtriumFallback`. The production atrium is added at the scene origin with identity rotation and scale `1`, and the previous procedural environment is grouped as `ProceduralAtriumFallback`.
 
 `ProceduralAtriumFallback` remains visible while the GLB is loading and remains available if loading fails. After a successful production-atrium load, the fallback is hidden so visitors see the production floor and architecture instead of the procedural grid. Stations, lessons, character models, HUD elements, quality controls, desktop/mobile controls, reduced-motion behavior, and progression persistence remain independent of this environment swap.
 
 ## Runtime material and lighting notes
 
-The current production GLB includes a 1024 × 1024 base-color material atlas embedded in the runtime GLB. The external atlas PNG remains the generator source asset. Normal maps and combined occlusion/roughness/metallic maps are still pending. The GLB includes nine bounded `KHR_lights_punctual` practical lights, and runtime integration keeps embedded glTF lights non-shadow-casting. Blender-authored lightmaps, reflection probes, desktop/mobile LODs, and geometry compression remain pending.
+Pass 3 is active and validated in the live loader. The runtime preserves the current PMREM, bloom, exposure, glass, floor, and PBR material tuning for separate visual review. The production and Pass 3 GLBs preserve the existing PNG atlas assets; Pass 3 embeds base-color, normal, and combined ORM atlases. KTX2/Basis texture delivery, Meshopt/Draco compression, Blender-authored lightmaps, and reflection probes remain future additive review assets rather than replacements in this slice.
 
 ## Pass 3 isolated review workflow
 
@@ -70,6 +70,45 @@ Before the review GLB can replace the production asset or be referenced by the l
 6. Glass, reflections, bloom, and contact depth are evaluated separately after the PBR maps pass review.
 7. Frame time and texture memory are recorded in Safari, desktop Chrome, tablet, and mobile quality modes.
 8. The current production GLB and procedural fallback remain available for rollback.
+
+
+## Pass 4A runtime performance foundation
+
+Pass 4A is a reversible runtime layer only. It does not modify the validated GLB or PNG assets, does not alter station or portal coordinates, and can be disabled with the runtime feature flags in `experience/index.html` (`pass4=0`, plus focused `lod=0` and `contacts=0` query switches for review).
+
+Runtime quality tiers are selected conservatively from viewport, pointer, and user-agent signals:
+
+- Desktop: high
+- Tablet: medium
+- Mobile phone: low
+
+The existing manual `Q·H`, `Q·M`, and `Q·L` control remains available and immediately refreshes runtime visibility and contact-depth state.
+
+### Diagnostics
+
+Optional performance diagnostics are hidden by default and appear only with `?perf=1`. The panel reports FPS, average frame time, draw calls, visible triangles, texture count, geometry count, current quality tier, and current atrium environment status. It updates roughly twice per second, ignores pointer events, and is styled to remain readable on desktop and mobile without affecting lessons or controls.
+
+### LOD classification
+
+Pass 4A classifies only established nonessential atrium node names for future distance-based LOD:
+
+- Furniture: `PROP_BenchSeat`, `PROP_BenchBase`
+- Foliage: `PROP_PlantTrunk`, `PROP_PlantCanopy`
+- Planters: `PROP_Planter`
+- Office dressing: `OFFICE_*_Desk`, `OFFICE_*_Display`, `OFFICE_*_Mullion`, `OFFICE_*_WarmLight`
+- Kiosks: `KIOSK_*`
+- Balcony details: balcony glass rails and other nonstructural balcony trim only
+- Nonessential ceiling details: `CEILING_Coffer`, `CEILING_Practical`
+
+The runtime does not classify or hide floors, walls, structural columns, stairs, balcony decks, portals, navigation paths, Intelligence Core dais geometry, primary ceiling structure, station or lesson geometry, collision behavior, or player boundaries. Visibility checks are throttled and use hysteresis so details do not flicker near tier thresholds. High keeps the widest radius, medium reduces distant dressing, and low uses the shortest radius.
+
+### Contact depth
+
+Pass 4A adds subtle floor contact depth using runtime-generated soft radial planes and a shared canvas texture. Contacts target column bases, stair landings, planters, benches, kiosks, and the Intelligence Core dais. The effect is non-directional, not mirror-like, not full-screen SSAO, enabled on high, reduced to essential contacts on medium, disabled on low, excluded from raycasting, and removable through the Pass 4 feature flag.
+
+### Deferred visual/binary work
+
+The Observatory ceiling opening remains deferred to a separate generator/binary pass. KTX2/Basis textures and Meshopt/Draco geometry compression remain future additive review assets. Existing GLB and PNG assets remain preserved.
 
 ## Coordinate system
 
@@ -128,7 +167,7 @@ Production pass 1 defines expanded material families, including:
 - `MAT_Foliage_DeepGreen`
 - `MAT_Portal_Navy`
 
-Production materials currently use the embedded base-color atlas in the runtime GLB. The isolated Pass 3 review path supports normal and combined occlusion/roughness/metallic maps; these maps remain pending for the live production asset until validation is complete. Selective emissive maps remain pending. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
+Production materials use embedded atlas textures in the runtime GLBs. Pass 3 normal and combined occlusion/roughness/metallic maps are active and validated for the Pass 3 review GLB. Selective emissive maps remain pending. Glass may use glTF transmission and index-of-refraction extensions after target-device testing.
 
 Production pass 2 embeds `textures/atrium-material-atlas.png` into the GLB and assigns its four material regions with `KHR_texture_transform`:
 
@@ -137,7 +176,7 @@ Production pass 2 embeds `textures/atrium-material-atlas.png` into the GLB and a
 - brushed titanium
 - blackened steel
 
-The atlas is a restrained base-color layer. Material roughness, metallic response, clear coat, glass transmission, IOR, and emissive strength remain physically separated in the glTF materials. Normal and ORM maps remain a later authored pass.
+The atlas is a restrained base-color layer. Material roughness, metallic response, clear coat, glass transmission, IOR, and emissive strength remain physically separated in the glTF materials. Normal and ORM maps are active in the Pass 3 PBR atrium and preserved as PNG source/review assets.
 
 The GLB also carries nine bounded `KHR_lights_punctual` practical lights for the central core, office warmth, and console portal. They intentionally do not request shadows; cinematic key lighting and reflection probes remain the responsibility of the host scene.
 
