@@ -2,11 +2,12 @@
 
 ## Production brief
 
-This directory contains two validated assets and reserves a third isolated review asset:
+This directory contains two validated assets and documents isolated review assets:
 
 - `orgintel-headquarters-atrium-graybox.glb` — locked scale and layout reference.
 - `orgintel-headquarters-atrium-production.glb` — production pass 2 with detailed architecture, expanded PBR material families, an embedded runtime base-color atlas, and live experience integration.
 - `orgintel-headquarters-atrium-pass3-review.glb` — validated Pass 3 PBR atrium and current primary live environment.
+- `orgintel-headquarters-atrium-pass4-observatory-review.glb` — reserved Pass 4B open-sky Observatory aperture review output; generated outside Codex Cloud only after text review.
 
 The graybox establishes navigation clearances, scale, and room placement. Production pass 1 adds two occupied balcony levels, office bays, architectural glass, stairs, floor inlays, ceiling coffers, portal depth, central-core detailing, practical fixtures, and environmental dressing. The production atrium is now connected to the live `/experience/` route through `experience/index.html`, with the procedural atrium retained as a fallback.
 
@@ -109,6 +110,43 @@ Pass 4A adds subtle floor contact depth using runtime-generated soft radial plan
 ### Deferred visual/binary work
 
 The Observatory ceiling opening remains deferred to a separate generator/binary pass. KTX2/Basis textures and Meshopt/Draco geometry compression remain future additive review assets. Existing GLB and PNG assets remain preserved.
+
+
+## Pass 4B Intelligence Observatory open-sky review
+
+Pass 4A runtime performance foundation is merged as the current reversible runtime layer. Its quality tiers, diagnostics, LOD classification, and contact-depth controls remain runtime-only and do not change the validated atrium binaries or atlas PNGs.
+
+Pass 4B is an isolated generator mode for architectural review of the Intelligence Observatory roof opening. It starts from the complete validated Pass 3 PBR configuration, requires the existing base-color, normal, and ORM atlases, and writes only `orgintel-headquarters-atrium-pass4-observatory-review.glb`. The live V5 Pass 3 loader remains unchanged and continues to target `orgintel-headquarters-atrium-pass3-review.glb` before falling back to the Pass 2 production GLB and procedural atrium.
+
+New review command:
+
+```bash
+node artifacts/orgintel-landing/scripts/generate-atrium-glb.mjs --pass4-observatory-review
+```
+
+New review output:
+
+- `artifacts/orgintel-landing/public/experience/models/orgintel-headquarters-atrium-pass4-observatory-review.glb`
+
+The Pass 4B aperture is centered above the Intelligence Observatory viewing region near the existing station at `(46, 0)` and the preserved portal coordinate `(62, 0, 0)`. The generator removes only the obstructing Observatory ceiling coffer/practical-light cells and splits the long `CEILING_Beam_48` member into named north and south structural segments outside the opening. New deterministic rim nodes (`OBSERVATORY_ROOF_RimNorth`, `OBSERVATORY_ROOF_RimSouth`, `OBSERVATORY_ROOF_RimEast`, `OBSERVATORY_ROOF_RimWest`, `OBSERVATORY_ROOF_AccentNorth`, and `OBSERVATORY_ROOF_AccentSouth`) frame the open sky with existing metal, cyan, and gold material families while leaving the aperture center completely open. No skylight glass, frosted panel, transparent ceiling surface, decorative crossing mesh, or new bloom-heavy light is introduced.
+
+### Replit binary-generation workflow
+
+Codex Cloud may edit text only and must not generate or commit the Pass 4B GLB. After this text-only change is reviewed, generate the binary in Replit or another approved binary-authoring environment with the command above. Confirm the three atlas PNGs are present under `public/experience/models/textures/` before generation, then run Khronos validation and deterministic hash checks on the produced review GLB.
+
+### Visual approval requirements
+
+Before any live-loader change is considered, visually approve the Pass 4B review GLB in the cinematic upward Observatory camera movement and verify that:
+
+1. The Intelligence Observatory constellation remains visible through the open roof aperture.
+2. The center of the aperture is free of glass and opaque crossing geometry.
+3. The rim reads as authored headquarters architecture from the Observatory floor.
+4. The five portal coordinates, navigation paths, player boundaries, stairs, balcony decks, office bays, Intelligence Core reserve, Pass 3 PBR materials, explicit tangents, normal maps, ORM maps, and nine existing practical lights remain preserved.
+5. The production Pass 2 GLB, Pass 3 review GLB, and all atlas PNGs remain unchanged.
+
+### Rollback behavior
+
+Rollback is unchanged because Pass 4B is review-only. If the aperture needs revision, discard the generated `orgintel-headquarters-atrium-pass4-observatory-review.glb` and continue using the live V5 Pass 3 loader. Do not replace `orgintel-headquarters-atrium-production.glb`, `orgintel-headquarters-atrium-pass3-review.glb`, or any texture atlas during Pass 4B review.
 
 ## Coordinate system
 

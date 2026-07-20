@@ -4,15 +4,31 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pass3Review = process.argv.includes("--pass3-review");
-const output = path.join(
-  root,
-  "public",
-  "experience",
-  "models",
-  pass3Review
-    ? "orgintel-headquarters-atrium-pass3-review.glb"
-    : "orgintel-headquarters-atrium-production.glb",
-);
+const pass4ObservatoryReview = process.argv.includes("--pass4-observatory-review");
+
+if ([pass3Review, pass4ObservatoryReview].filter(Boolean).length > 1) {
+  throw new Error("Choose only one atrium generation mode: default Pass 2, --pass3-review, or --pass4-observatory-review.");
+}
+
+const outputFilenames = {
+  production: "orgintel-headquarters-atrium-production.glb",
+  pass3Review: "orgintel-headquarters-atrium-pass3-review.glb",
+  pass4ObservatoryReview: "orgintel-headquarters-atrium-pass4-observatory-review.glb",
+};
+const outputFilename = pass4ObservatoryReview
+  ? outputFilenames.pass4ObservatoryReview
+  : pass3Review
+    ? outputFilenames.pass3Review
+    : outputFilenames.production;
+const output = path.join(root, "public", "experience", "models", outputFilename);
+const pbrReviewMode = pass3Review || pass4ObservatoryReview;
+const productionPass = pass4ObservatoryReview ? "4B-observatory-review" : pass3Review ? 3 : 2;
+const observatoryAperture = {
+  center: [51, 20.2, 2],
+  bounds: { minX: 37.5, maxX: 64.5, minZ: -24, maxZ: 28 },
+  ceilingY: 20.2,
+  covers: { observatoryStation: [46, 0, 0], observatoryPortal: [62, 0, 0] },
+};
 const textureDirectory = path.join(
   root,
   "public",
@@ -27,21 +43,40 @@ const ormAtlas = path.join(textureDirectory, "atrium-orm-atlas.png");
 const json = {
   asset: {
     version: "2.0",
-    generator: `OrgIntel Atrium Production Generator ${pass3Review ? "4.0-review" : "3.0"}`,
+    generator: `OrgIntel Atrium Production Generator ${pass4ObservatoryReview ? "4B-observatory-open-sky-review" : pass3Review ? "4.0-review" : "3.0"}`,
     extras: {
-      title: `OrgIntel Headquarters Atrium Environment — Realism Pass ${pass3Review ? 3 : 2}`,
+      title: `OrgIntel Headquarters Atrium Environment — Realism Pass ${pass4ObservatoryReview ? "4B Observatory Open-Sky Review" : pass3Review ? 3 : 2}`,
       unitMeters: 1,
       upAxis: "Y",
       forwardAxis: "-Z",
-      purpose: pass3Review
-        ? "Isolated review asset for normal and occlusion/roughness/metallic surface maps"
-        : "Detailed architecture, authored surface atlas, PBR materials, navigation, and visual review",
-      productionPass: pass3Review ? 3 : 2,
-      liveIntegrationApproved: !pass3Review,
-      ...(pass3Review
+      purpose: pass4ObservatoryReview
+        ? "Isolated open-sky review asset for Intelligence Observatory aperture approval"
+        : pass3Review
+          ? "Isolated review asset for normal and occlusion/roughness/metallic surface maps"
+          : "Detailed architecture, authored surface atlas, PBR materials, navigation, and visual review",
+      productionPass,
+      liveIntegrationApproved: !pbrReviewMode,
+      ...(pbrReviewMode
         ? {
             textureProfile: "base-color + tangent-space normal + ORM",
+            sourcePass3AssetConfiguration: "complete validated Pass 3 PBR configuration",
             liveProductionAssetUnchanged: true,
+          }
+        : {}),
+      ...(pass4ObservatoryReview
+        ? {
+            openSkyReviewStatus: "review-only; not referenced by live loader",
+            reviewOnlyOutput: outputFilenames.pass4ObservatoryReview,
+            observatoryAperture,
+            portalCoordinatesPreserved: {
+              MemoryArchive: [-62, 0, 0],
+              DecisionChamber: [-31, 0, -70],
+              ProofVault: [31, 0, -70],
+              IntelligenceObservatory: [62, 0, 0],
+              OperationalConsole: [0, 0, -76],
+            },
+            apertureCenterClear: true,
+            noSkylightGlassOrCrossingGeometry: true,
           }
         : {}),
     },
@@ -64,7 +99,7 @@ const json = {
   samplers: [{ name: "SAMPLER_AtlasClamp", magFilter: 9729, minFilter: 9987, wrapS: 33071, wrapT: 33071 }],
   textures: [
     { name: "TEX_OrgIntelAtriumMaterialAtlas", sampler: 0, source: 0 },
-    ...(pass3Review
+    ...(pbrReviewMode
       ? [
           { name: "TEX_OrgIntelAtriumNormalAtlas", sampler: 0, source: 1 },
           { name: "TEX_OrgIntelAtriumORMAtlas", sampler: 0, source: 2 },
@@ -188,7 +223,7 @@ function registerGeometry(name, geometry, includeUv = true) {
     position: addAccessor(new Float32Array(geometry.positions), 5126, "VEC3", 34962, true),
     normal: addAccessor(new Float32Array(geometry.normals), 5126, "VEC3", 34962),
     uv: includeUv ? addAccessor(new Float32Array(geometry.uvs), 5126, "VEC2", 34962) : undefined,
-    tangent: pass3Review && includeUv
+    tangent: pbrReviewMode && includeUv
       ? addAccessor(new Float32Array(tangentGeometry(geometry)), 5126, "VEC4", 34962)
       : undefined,
     indices: addAccessor(new Uint16Array(geometry.indices), 5123, "SCALAR", 34963),
@@ -309,7 +344,7 @@ function material(name, baseColor, metallic, roughness, emissive = [0, 0, 0], op
   };
   if (options.atlas) {
     value.pbrMetallicRoughness.baseColorTexture = atlasTextureInfo(0, options.atlas);
-    if (pass3Review) {
+    if (pbrReviewMode) {
       value.normalTexture = atlasTextureInfo(1, options.atlas, {
         scale: options.normalScale ?? .35,
       });
@@ -526,14 +561,37 @@ for (let x = -52; x <= 52; x += 13) {
 
 // Ceiling frame and central architectural rings.
 addBox("CEILING_Spine", materials.secondary, [0, 20.2, -7], [2, .7, 142]);
-for (const x of [-48, -24, 24, 48]) addBox(`CEILING_Beam_${x}`, materials.secondary, [x, 20.2, -7], [1.1, .7, 142]);
+for (const x of [-48, -24, 24]) addBox(`CEILING_Beam_${x}`, materials.secondary, [x, 20.2, -7], [1.1, .7, 142]);
+if (pass4ObservatoryReview) {
+  addBox("CEILING_Beam_48_SouthSegment", materials.secondary, [48, 20.2, -51], [1.1, .7, 54], 0, { splitForObservatoryAperture: true });
+  addBox("CEILING_Beam_48_NorthSegment", materials.secondary, [48, 20.2, 46], [1.1, .7, 36], 0, { splitForObservatoryAperture: true });
+} else {
+  addBox("CEILING_Beam_48", materials.secondary, [48, 20.2, -7], [1.1, .7, 142]);
+}
 addNode("CEILING_CoreRing_Outer", "torus", materials.teal, [0, 20, 8], [28, 2.4, 28]);
 addNode("CEILING_CoreRing_Inner", "torus", materials.gold, [0, 19.85, 8], [18, 1.5, 18]);
 for (let x = -48; x <= 48; x += 24) {
   for (let z = -52; z <= 44; z += 24) {
+    const inObservatoryAperture = pass4ObservatoryReview
+      && x === 48
+      && z >= observatoryAperture.bounds.minZ
+      && z <= observatoryAperture.bounds.maxZ;
+    if (inObservatoryAperture) continue;
     addBox(`CEILING_Coffer_${x}_${z}`, materials.blackMetal, [x, 20.35, z], [18, .3, 16]);
     addBox(`CEILING_Practical_${x}_${z}`, (x + z) % 48 === 0 ? materials.warm : materials.teal, [x, 20.12, z], [8.5, .055, .18]);
   }
+}
+
+if (pass4ObservatoryReview) {
+  const { minX, maxX, minZ, maxZ } = observatoryAperture.bounds;
+  const centerX = (minX + maxX) / 2;
+  const centerZ = (minZ + maxZ) / 2;
+  addBox("OBSERVATORY_ROOF_RimNorth", materials.brushedMetal, [centerX, 20.45, maxZ + .95], [maxX - minX + 2.4, .65, 1.9], 0, { observatoryApertureRim: true });
+  addBox("OBSERVATORY_ROOF_RimSouth", materials.brushedMetal, [centerX, 20.45, minZ - .95], [maxX - minX + 2.4, .65, 1.9], 0, { observatoryApertureRim: true });
+  addBox("OBSERVATORY_ROOF_RimEast", materials.blackMetal, [maxX + .95, 20.45, centerZ], [1.9, .65, maxZ - minZ], 0, { observatoryApertureRim: true });
+  addBox("OBSERVATORY_ROOF_RimWest", materials.blackMetal, [minX - .95, 20.45, centerZ], [1.9, .65, maxZ - minZ], 0, { observatoryApertureRim: true });
+  addBox("OBSERVATORY_ROOF_AccentNorth", materials.teal, [centerX, 20.02, maxZ + .02], [maxX - minX, .08, .24], 0, { observatoryApertureAccent: true });
+  addBox("OBSERVATORY_ROOF_AccentSouth", materials.gold, [centerX, 20.02, minZ - .02], [maxX - minX, .08, .24], 0, { observatoryApertureAccent: true });
 }
 
 // Intelligence Core reserve and ceremonial dais.
@@ -605,7 +663,7 @@ json.images.push({
   bufferView: atlasBufferView,
 });
 
-if (pass3Review) {
+if (pbrReviewMode) {
   let normalBytes;
   let ormBytes;
   try {
@@ -615,7 +673,7 @@ if (pass3Review) {
     ]);
   } catch (error) {
     throw new Error(
-      `Pass 3 review generation requires ${path.basename(normalAtlas)} and ${path.basename(ormAtlas)}. `
+      `${pass4ObservatoryReview ? "Pass 4 Observatory review" : "Pass 3 review"} generation requires ${path.basename(normalAtlas)} and ${path.basename(ormAtlas)}. `
       + "The live Pass 2 GLB was not modified.",
       { cause: error },
     );
