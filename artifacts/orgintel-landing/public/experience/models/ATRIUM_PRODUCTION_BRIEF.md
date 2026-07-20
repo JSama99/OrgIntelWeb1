@@ -177,6 +177,56 @@ Asset selection and runtime optimization flags are independent. Reversible switc
 
 KTX2/Basis texture delivery and Meshopt/Draco geometry compression remain future additive optimization work. Existing GLB and PNG assets remain preserved.
 
+
+## Pass 5A remaining draw-call profiling
+
+Pass 5A is a text-only diagnostic pass for understanding the remaining production GPU draw calls before any deeper batching is attempted. It adds no asset changes, no render passes, no scene mutations, and no changes to visibility, materials, geometry, rendering order, LOD, or instancing. Normal production visits remain unchanged.
+
+### Profiling switch
+
+Use `?profile=1` to enable the Pass 5A profiler. It can run by itself or alongside performance diagnostics, for example `/experience/?perf=1&profile=1`. The existing `?perf=1` panel is unchanged when `?profile=1` is absent. When both switches are present, the normal performance panel gains only a compact profile summary showing estimated main-scene render calls and postprocessing/residual calls.
+
+The latest structured profiler result is exposed at `window.__orgintelPass5Profile`. When profiling is enabled, the runtime prints a readable `console.table` summary approximately every 1.5 seconds.
+
+### Category definitions
+
+Pass 5A categorizes instrumented `renderer.renderBufferDirect` calls by rendered object, ancestor names, and material names using these diagnostic buckets:
+
+- Atrium architecture: floors, walls, columns, stairs, structural glass, facade, lobby grids, dais/trim, and other architectural shell geometry.
+- Office dressing: office bays, workstations, desks, displays, monitors, mullions, and warm practical office-light surfaces.
+- Furniture: benches, seats, chairs, tables, desks, stools, sofas, and similar furniture props.
+- Foliage: plants, trees, trunks, leaves, canopies, shrubs, and similar organic dressing.
+- Planters: planter vessels and related planter geometry.
+- Balcony details: balcony rails, railings, balustrades, balcony trim, and related nonstructural details.
+- Kiosks: named kiosk meshes and kiosk-related props.
+- Ceiling details: ceiling coffers, practicals, skylight/roof/cornice details, and ceiling trim.
+- Portals and lesson stations: portals, paths, station/lesson geometry, room labels, interactive station props, and the operational-console journey geometry.
+- Characters and hero models: player/avatar, Tal/guide, founder/character assets, hero models, and Intelligence Core character/hero naming.
+- Particles and visual effects: dust, particles, sprites, glow cards, holograms, light trails, signal/constellation/star effects, emissive/bloom-adjacent visual helpers.
+- Contact-depth geometry: Pass 4 runtime contact-depth planes and their instanced batch.
+- Other or uncategorized: any rendered item that does not match the above name/material heuristics.
+- Postprocessing/residual calls: `renderer.info.render.calls` minus categorized main-scene `renderBufferDirect` calls. This bucket reconciles categorized scene estimates with the renderer-reported total and usually represents postprocessing, renderer-internal, or other non-main-scene work. Shadow draws from objects whose parent chain reaches the main OrgIntel scene may be attributed to that object category rather than residual.
+
+### Measurement limitations
+
+All Pass 5A category counts are estimates. The profiler wraps Three.js `renderer.renderBufferDirect` only when `?profile=1` is enabled, resets accumulators immediately before the normal frame render, records calls made during that existing render, and finalizes the profile immediately afterward. Main-scene calls are identified by walking each object parent chain back to the OrgIntel scene; calls from internal postprocessing scenes or objects outside that parent chain are treated as residual. Multi-material geometries, transparent sorting, shadow-map work, EffectComposer passes, renderer-internal work, and browser/GPU driver behavior can still limit exact low-level GPU attribution; shadow draws from main-scene objects may appear in those objects’ categories. For that reason, the residual bucket is always labeled as postprocessing/residual and reconciles categorized main-scene calls with `renderer.info.render.calls`.
+
+The profiler reports, where available, estimated rendered draw items, unique rendered objects, instanced mesh batches, total instances, unique materials, unique geometries, and estimated rendered triangles per category. Because instrumentation happens at `renderBufferDirect`, opaque, transmissive, and transparent scene calls are captured without relying on completed render-list availability. Instanced meshes are counted as one batch with their instance count recorded only the first time that InstancedMesh object appears in a category during a frame. Triangle estimates are derived from the supplied geometry and group arguments when available, or from geometry draw ranges/index/position counts as a fallback, then multiplied by instance count for `InstancedMesh` objects.
+
+### Production Safari-on-Mac baseline before Pass 5A
+
+Observed before adding Pass 5A profiling:
+
+- 60 FPS
+- 16.7 ms average frame
+- 559 GPU draw calls
+- 48,666 rendered triangles
+- 63 textures
+- 223 geometries
+- High auto quality
+- 12 instance batches
+- 270 source meshes consolidated
+
 ## Coordinate system
 
 - Units: meters

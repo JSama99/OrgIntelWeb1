@@ -652,6 +652,7 @@ function boot() {
 
   const runtimePass4 = { enabled: true, lod: true, contactDepth: true, instancing: true };
   const params = new URLSearchParams(location.search);
+  const profileDiagnosticsEnabled = params.get('profile') === '1';
   if (params.get('pass4') === '0') { runtimePass4.enabled = false; runtimePass4.lod = false; runtimePass4.contactDepth = false; }
   if (params.get('lod') === '0') runtimePass4.lod = false;
   if (params.get('contacts') === '0') runtimePass4.contactDepth = false;
@@ -2281,18 +2282,194 @@ function boot() {
   const BXc = 62, BZNc = -66, BZSc = 32;
   contactDepthSystem = createContactDepthSystem();
   const perfDiagnostics = {
-    enabled: new URLSearchParams(location.search).get('perf') === '1',
+    enabled: params.get('perf') === '1',
     frames: 0,
     elapsedMs: 0,
     panelLast: 0,
     lastRenderInfo: { calls: 0, triangles: 0, textures: 0, geometries: 0 }
   };
+  const profileCategories = [
+    'Atrium architecture',
+    'Office dressing',
+    'Furniture',
+    'Foliage',
+    'Planters',
+    'Balcony details',
+    'Kiosks',
+    'Ceiling details',
+    'Portals and lesson stations',
+    'Characters and hero models',
+    'Particles and visual effects',
+    'Contact-depth geometry',
+    'Other or uncategorized'
+  ];
+  function createProfileCategoryRows() {
+    const rows = {};
+    profileCategories.forEach((name) => {
+      rows[name] = { category: name, estimatedDrawItems: 0, uniqueRenderedObjects: 0, instancedMeshBatches: 0, totalInstances: 0, uniqueMaterials: 0, uniqueGeometries: 0, estimatedRenderedTriangles: 0 };
+    });
+    return rows;
+  }
+  const profileDiagnostics = {
+    enabled: profileDiagnosticsEnabled,
+    tableLast: 0,
+    latest: null,
+    frame: null,
+    originalRenderBufferDirect: renderer.renderBufferDirect
+  };
+  if (profileDiagnostics.enabled) {
+    renderer.info.autoReset = false;
+    window.__orgintelPass5Profile = null;
+  }
+  function getProfileName(object) {
+    const names = [];
+    let current = object;
+    while (current) {
+      if (current.name) names.push(current.name);
+      current = current.parent;
+    }
+    if (object && object.material) {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => { if (material && material.name) names.push(material.name); });
+    }
+    return names.join(' ');
+  }
+  function categoryForProfileObject(object) {
+    const name = getProfileName(object);
+    if (/Pass4RuntimeContactDepth/i.test(name)) return 'Contact-depth geometry';
+    if (/dust|particle|spark|glow|holo|emissive|bloom|sprite|trail|signal|constellation|star/i.test(name)) return 'Particles and visual effects';
+    if (/founder|\btal\b|hero|character|player|avatar|guide|Intelligence\s*Core/i.test(name)) return 'Characters and hero models';
+    if (/portal|station|lesson|archive|decision|proof|observatory|console|PATH_|interactive/i.test(name)) return 'Portals and lesson stations';
+    if (/^KIOSK_|kiosk/i.test(name)) return 'Kiosks';
+    if (/ceiling|coffer|practical|skylight|cornice|roof/i.test(name)) return 'Ceiling details';
+    if (/balcony|rail|railing|balustrade/i.test(name)) return 'Balcony details';
+    if (/planter/i.test(name)) return 'Planters';
+    if (/plant|foliage|leaf|leaves|canopy|trunk|tree|shrub/i.test(name)) return 'Foliage';
+    if (/bench|chair|table|desk|sofa|stool|seat|furniture/i.test(name)) return 'Furniture';
+    if (/office|workstation|display|monitor|screen|mullion|warmlight/i.test(name)) return 'Office dressing';
+    if (/atrium|floor|wall|column|pillar|stair|dais|glass|facade|architecture|structural|beam|trim|lobby|grid/i.test(name)) return 'Atrium architecture';
+    return 'Other or uncategorized';
+  }
+  function profileMaterialList(material) { return Array.isArray(material) ? material.filter(Boolean) : material ? [material] : []; }
+  function isProfileMainSceneObject(object) {
+    let current = object;
+    while (current) {
+      if (current === scene) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+  function estimateProfileTriangles(geometry, object, group) {
+    if (!geometry) return 0;
+    let drawCount = 0;
+    if (group && Number.isFinite(group.count)) {
+      drawCount = group.count;
+    } else {
+      const indexedCount = geometry.index && Number.isFinite(geometry.index.count) ? geometry.index.count : 0;
+      const position = geometry.attributes && geometry.attributes.position;
+      const vertexCount = position && Number.isFinite(position.count) ? position.count : 0;
+      const totalCount = indexedCount || vertexCount;
+      const range = geometry.drawRange || {};
+      const rangeStart = Number.isFinite(range.start) ? Math.max(0, range.start) : 0;
+      const rangeCount = Number.isFinite(range.count) ? Math.max(0, range.count) : totalCount;
+      drawCount = Math.max(0, Math.min(totalCount - rangeStart, rangeCount));
+    }
+    const multiplier = object && object.isInstancedMesh ? Math.max(object.count || 0, 1) : 1;
+    return Math.round((drawCount / 3) * multiplier);
+  }
+  function resetPass5ProfileFrame() {
+    if (!profileDiagnostics.enabled) return;
+    profileDiagnostics.frame = {
+      categories: createProfileCategoryRows(),
+      seenObjects: {},
+      seenMaterials: {},
+      seenGeometries: {},
+      seenInstancedMeshes: {},
+      categorizedMainSceneCalls: 0,
+      instrumentedResidualCalls: 0,
+      residualTriangles: 0
+    };
+  }
+  function recordPass5ProfileCall(geometry, material, object, group) {
+    const frame = profileDiagnostics.frame;
+    if (!profileDiagnostics.enabled || !frame) return;
+    if (!isProfileMainSceneObject(object)) {
+      frame.instrumentedResidualCalls++;
+      frame.residualTriangles += estimateProfileTriangles(geometry, object, group);
+      return;
+    }
+    const category = categoryForProfileObject(object);
+    const row = frame.categories[category] || frame.categories['Other or uncategorized'];
+    row.estimatedDrawItems++;
+    frame.categorizedMainSceneCalls++;
+    if (!frame.seenObjects[category]) frame.seenObjects[category] = new Set();
+    frame.seenObjects[category].add(object.id);
+    if (object && object.isInstancedMesh) {
+      if (!frame.seenInstancedMeshes[category]) frame.seenInstancedMeshes[category] = new Set();
+      if (!frame.seenInstancedMeshes[category].has(object.id)) {
+        frame.seenInstancedMeshes[category].add(object.id);
+        row.instancedMeshBatches++;
+        row.totalInstances += object.count || 0;
+      }
+    }
+    if (geometry) {
+      if (!frame.seenGeometries[category]) frame.seenGeometries[category] = new Set();
+      frame.seenGeometries[category].add(geometry.id);
+    }
+    profileMaterialList(material || (object && object.material)).forEach((profileMaterial) => {
+      if (!frame.seenMaterials[category]) frame.seenMaterials[category] = new Set();
+      frame.seenMaterials[category].add(profileMaterial.id);
+    });
+    row.estimatedRenderedTriangles += estimateProfileTriangles(geometry, object, group);
+  }
+  function finalizePass5Profile(now) {
+    if (!profileDiagnostics.enabled || !profileDiagnostics.frame) return null;
+    const frame = profileDiagnostics.frame;
+    profileCategories.forEach((name) => {
+      frame.categories[name].uniqueRenderedObjects = frame.seenObjects[name] ? frame.seenObjects[name].size : 0;
+      frame.categories[name].uniqueMaterials = frame.seenMaterials[name] ? frame.seenMaterials[name].size : 0;
+      frame.categories[name].uniqueGeometries = frame.seenGeometries[name] ? frame.seenGeometries[name].size : 0;
+    });
+    const totalDrawCalls = renderer.info.render.calls;
+    const residualCalls = totalDrawCalls - frame.categorizedMainSceneCalls;
+    frame.categories['Postprocessing/residual calls'] = { category: 'Postprocessing/residual calls', estimatedDrawItems: residualCalls, uniqueRenderedObjects: null, instancedMeshBatches: null, totalInstances: null, uniqueMaterials: null, uniqueGeometries: null, estimatedRenderedTriangles: frame.residualTriangles };
+    const latest = {
+      enabled: true,
+      generatedAtMs: Math.round(now),
+      note: 'Pass 5A instruments renderer.renderBufferDirect during the normal frame render. Main-scene categories are estimates for renderBufferDirect calls whose object parent chain reaches the OrgIntel scene; residual calls reconcile renderer.info.render.calls with categorized main-scene calls and include postprocessing, renderer-internal, or non-main-scene work. Shadow draws from objects in the OrgIntel scene may be attributed to that object category.',
+      totals: { rendererDrawCalls: totalDrawCalls, categorizedSceneDrawItems: frame.categorizedMainSceneCalls, postprocessingResidualCalls: residualCalls, instrumentedResidualCalls: frame.instrumentedResidualCalls, rendererTriangles: renderer.info.render.triangles },
+      categories: frame.categories
+    };
+    profileDiagnostics.latest = latest;
+    window.__orgintelPass5Profile = latest;
+    if (now - profileDiagnostics.tableLast > 1500) {
+      profileDiagnostics.tableLast = now;
+      console.table(Object.values(frame.categories).map((row) => ({
+        category: row.category,
+        estimatedDrawItems: row.estimatedDrawItems,
+        uniqueRenderedObjects: row.uniqueRenderedObjects,
+        instancedMeshBatches: row.instancedMeshBatches,
+        totalInstances: row.totalInstances,
+        uniqueMaterials: row.uniqueMaterials,
+        uniqueGeometries: row.uniqueGeometries,
+        estimatedRenderedTriangles: row.estimatedRenderedTriangles
+      })));
+    }
+    profileDiagnostics.frame = null;
+    return latest;
+  }
+  if (profileDiagnostics.enabled && typeof profileDiagnostics.originalRenderBufferDirect === 'function') {
+    renderer.renderBufferDirect = function () {
+      recordPass5ProfileCall(arguments[2], arguments[3], arguments[4], arguments[5]);
+      return profileDiagnostics.originalRenderBufferDirect.apply(renderer, arguments);
+    };
+  }
   if (perfDiagnostics.enabled) {
     perfPanel.classList.add('on');
     renderer.info.autoReset = false;
   }
   function beginPerfDiagnosticsFrame() {
-    if (!perfDiagnostics.enabled) return;
+    if (!perfDiagnostics.enabled && !profileDiagnostics.enabled) return;
     renderer.info.reset();
   }
   function capturePerfDiagnosticsFrame(rawFrameMs) {
@@ -2320,6 +2497,11 @@ function boot() {
     const info = perfDiagnostics.lastRenderInfo;
     const tier = quality.level === 2 ? 'high' : quality.level === 1 ? 'medium' : 'low';
     const rows = [['FPS', fps.toFixed(0)], ['Avg frame', avg.toFixed(1) + ' ms'], ['GPU draw calls', info.calls], ['Rendered triangles', info.triangles], ['Textures', info.textures], ['Geometries', info.geometries], ['Quality', tier + (quality.mode === 'manual' ? ' manual' : ' auto')], ['Atrium', activeAtriumStatus], ['Instancing', atriumInstanceStats.enabled ? 'on' : 'off'], ['Instance batches', atriumInstanceStats.batches], ['Source meshes consolidated', atriumInstanceStats.sourceMeshes], ['Total instances', atriumInstanceStats.totalInstances]];
+    const latestProfile = profileDiagnostics.enabled ? profileDiagnostics.latest : null;
+    if (latestProfile) {
+      rows.push(['Profile scene items', latestProfile.totals.categorizedSceneDrawItems + ' est']);
+      rows.push(['Profile residual', latestProfile.totals.postprocessingResidualCalls + ' est']);
+    }
     perfPanelRows.innerHTML = rows.map(([k, v]) => '<div class="row"><span>' + k + '</span><span class="value">' + v + '</span></div>').join('');
   }
   let raf = null, running = false;
@@ -2429,8 +2611,10 @@ function boot() {
     refreshAtriumLOD(false);
     updateRaycast();
     beginPerfDiagnosticsFrame();
+    resetPass5ProfileFrame();
     if (composer) composer.render();
     else renderer.render(scene, camera);
+    finalizePass5Profile(t);
     capturePerfDiagnosticsFrame(rawFrameMs);
     updatePerfDiagnosticsPanel(t);
     raf = requestAnimationFrame(frame);
