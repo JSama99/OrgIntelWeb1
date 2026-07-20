@@ -308,3 +308,57 @@ node artifacts/orgintel-landing/scripts/generate-atrium-glb.mjs --pass3-review
 ```
 
 The Pass 3 command writes `orgintel-headquarters-atrium-pass3-review.glb`. It never overwrites `orgintel-headquarters-atrium-production.glb`.
+
+## Pass 4D runtime instancing and draw-call reduction
+
+Pass 4D is a reversible, text-only runtime batching layer in `experience/index.html`. It targets the measured Pass 4B high-quality baseline of approximately 59 FPS, 17.1 ms average frame time, 873 GPU draw calls, 47,816 rendered triangles, 63 textures, and 241 geometries. The primary optimization target is GPU draw calls, not visual simplification or binary asset replacement.
+
+### Runtime instancing design
+
+After a GLB atrium candidate loads, the runtime first applies `prepareProductionAtrium(model)` so materials, shadows, identity root transform, and quality-tier tuning match the existing Pass 4B path. It then calls `createAtriumInstanceBatches(model)` before `registerAtriumRuntimeDetails(model)`. This order keeps batching downstream of material preparation while keeping the Pass 4A LOD collector focused on remaining individual meshes.
+
+The batching pass walks the loaded atrium hierarchy and groups only safe opaque static meshes that share all compatibility properties required for a single `THREE.InstancedMesh` draw path:
+
+- Same geometry object
+- Same material object
+- Same `castShadow` setting
+- Same `receiveShadow` setting
+- Static transform
+- No skinning
+- No morph targets
+- No animation or interaction metadata
+- No multiple-material array
+- No transparent, glass, frosted, or transmissive material
+
+Each created batch reuses the original geometry and material, preserves shadow flags, uses `StaticDrawUsage` for the instance matrix when Three.js exposes it, disables raycasting, and uses a deterministic `Pass4Batch_` name. Source meshes are removed from their original parents only after their replacement batch has been created. Shared geometry and materials are deliberately not disposed because the batch reuses them. The stored runtime statistics report the number of batches, source meshes consolidated, and total instances in the `?perf=1` panel.
+
+Instance matrices are composed relative to the atrium model root from each source mesh's complete world transform. Because the batch root is added back under the same atrium model root, the visible position, rotation, and scale of each consolidated element remain unchanged. Batches conservatively disable frustum culling to avoid incorrect disappearance from shared bounds in the review environment.
+
+### Eligible and excluded mesh categories
+
+Initial safe candidates are intentionally conservative and limited to repeated opaque static architecture such as structural columns, column bases and caps, stair steps, floor inlays, ceiling coffers and framing not controlled by LOD, repeated opaque office structure, and repeated noninteractive Intelligence Core architectural pylons.
+
+Pass 4D does not instance meshes already classified by the Pass 4A LOD system because those objects require individual distance visibility and hysteresis. Excluded LOD families include furniture, foliage, planters, office dressing, kiosks, balcony details, and nonessential ceiling details.
+
+The runtime also excludes glass, frosted glass, transparent or transmissive meshes, skinned meshes, morph-target meshes, animated objects, Founder, Tal, the Intelligence Core character model, station lesson geometry, collision or player-boundary objects, interactive objects, objects with `interactiveReserved` metadata, objects required for raycasting, GLTF lights, and `Pass4RuntimeContactDepth`.
+
+Navigation and interaction-sensitive node families are excluded by name or metadata before grouping: `PORTAL_*`, `PATH_*`, `KIOSK_*`, `COL_*`, station-related nodes, and any node carrying `roomId`, `roomLabel`, `interactiveReserved`, `walkable`, or `collision` metadata.
+
+### Rollback and query flags
+
+Runtime batching is controlled by `runtimePass4.instancing` and is independent from `atrium=pass4`, `pass4=0`, `lod=0`, `contacts=0`, and `perf=1`. Add `?batch=0` to disable instancing completely. When `batch=0` is present, the runtime skips `createAtriumInstanceBatches(model)` and leaves the original GLB hierarchy unchanged; it does not batch first and attempt to reconstruct nodes later.
+
+Comparison URLs:
+
+- `/experience/?atrium=pass4&perf=1` — Pass 4B review route with Pass 4D instancing enabled.
+- `/experience/?atrium=pass4&perf=1&batch=0` — same review route with batching disabled for direct baseline comparison.
+
+Do not merge Pass 4D until both URLs have been compared in Replit.
+
+### Contact-depth instancing
+
+The Pass 4A contact-depth floor accents now prefer a single `THREE.InstancedMesh` per active quality configuration. The generated canvas texture, material opacity, positions, scales, high/medium quality item lists, low-quality disabled behavior, and noninteractive raycast behavior are preserved. If `THREE.InstancedMesh` is unavailable, the runtime falls back to the previous individual plane meshes.
+
+### Diagnostic comparison procedure
+
+Use `?perf=1` to compare the post-render diagnostics panel for the two URLs above. Confirm that FPS and average frame time still use raw `requestAnimationFrame` milliseconds, renderer statistics are captured after rendering, GPU draw calls and rendered triangles are accurate for the active render path, and the panel reports instancing on/off, instance batch count, source meshes consolidated, and total instances. During review, verify transparent, animated, interactive, LOD-controlled, portal, path, and collision nodes remain unbatched; original world transforms are preserved; no shared geometry or material is disposed; each successfully batched source mesh is removed exactly once; and loaders, fallbacks, lessons, progression, coordinates, player boundaries, quality tiers, reduced-motion behavior, and all GLB/PNG assets remain unchanged.
