@@ -2384,6 +2384,7 @@ function boot() {
       seenObjects: {},
       seenMaterials: {},
       seenGeometries: {},
+      seenInstancedMeshes: {},
       categorizedMainSceneCalls: 0,
       instrumentedResidualCalls: 0,
       residualTriangles: 0
@@ -2403,7 +2404,14 @@ function boot() {
     frame.categorizedMainSceneCalls++;
     if (!frame.seenObjects[category]) frame.seenObjects[category] = new Set();
     frame.seenObjects[category].add(object.id);
-    if (object && object.isInstancedMesh) { row.instancedMeshBatches++; row.totalInstances += object.count || 0; }
+    if (object && object.isInstancedMesh) {
+      if (!frame.seenInstancedMeshes[category]) frame.seenInstancedMeshes[category] = new Set();
+      if (!frame.seenInstancedMeshes[category].has(object.id)) {
+        frame.seenInstancedMeshes[category].add(object.id);
+        row.instancedMeshBatches++;
+        row.totalInstances += object.count || 0;
+      }
+    }
     if (geometry) {
       if (!frame.seenGeometries[category]) frame.seenGeometries[category] = new Set();
       frame.seenGeometries[category].add(geometry.id);
@@ -2428,7 +2436,7 @@ function boot() {
     const latest = {
       enabled: true,
       generatedAtMs: Math.round(now),
-      note: 'Pass 5A instruments renderer.renderBufferDirect during the normal frame render. Main-scene categories are estimates for renderBufferDirect calls whose object parent chain reaches the OrgIntel scene; residual calls reconcile renderer.info.render.calls with categorized main-scene calls and include postprocessing, renderer-internal, shadow, or non-main-scene work.',
+      note: 'Pass 5A instruments renderer.renderBufferDirect during the normal frame render. Main-scene categories are estimates for renderBufferDirect calls whose object parent chain reaches the OrgIntel scene; residual calls reconcile renderer.info.render.calls with categorized main-scene calls and include postprocessing, renderer-internal, or non-main-scene work. Shadow draws from objects in the OrgIntel scene may be attributed to that object category.',
       totals: { rendererDrawCalls: totalDrawCalls, categorizedSceneDrawItems: frame.categorizedMainSceneCalls, postprocessingResidualCalls: residualCalls, instrumentedResidualCalls: frame.instrumentedResidualCalls, rendererTriangles: renderer.info.render.triangles },
       categories: frame.categories
     };
