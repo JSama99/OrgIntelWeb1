@@ -28,7 +28,7 @@ The graybox establishes navigation clearances, scale, and room placement. Produc
 
 ## Live experience integration
 
-`artifacts/orgintel-landing/public/experience/index.html` loads `./models/orgintel-headquarters-atrium-pass3-review.glb` as the primary environment GLB, then falls back to `./models/orgintel-headquarters-atrium-production.glb`, then keeps `ProceduralAtriumFallback`. The production atrium is added at the scene origin with identity rotation and scale `1`, and the previous procedural environment is grouped as `ProceduralAtriumFallback`.
+`artifacts/orgintel-landing/public/experience/index.html` loads `./models/orgintel-headquarters-atrium-pass3-review.glb` as the default primary environment GLB, then falls back to `./models/orgintel-headquarters-atrium-production.glb`, then keeps `ProceduralAtriumFallback`. The isolated Pass 4B Observatory review GLB is query-controlled and is requested only when `?atrium=pass4` is present. The production atrium is added at the scene origin with identity rotation and scale `1`, and the previous procedural environment is grouped as `ProceduralAtriumFallback`.
 
 `ProceduralAtriumFallback` remains visible while the GLB is loading and remains available if loading fails. After a successful production-atrium load, the fallback is hidden so visitors see the production floor and architecture instead of the procedural grid. Stations, lessons, character models, HUD elements, quality controls, desktop/mobile controls, reduced-motion behavior, and progression persistence remain independent of this environment swap.
 
@@ -116,7 +116,7 @@ The Observatory ceiling opening remains deferred to a separate generator/binary 
 
 Pass 4A runtime performance foundation is merged as the current reversible runtime layer. Its quality tiers, diagnostics, LOD classification, and contact-depth controls remain runtime-only and do not change the validated atrium binaries or atlas PNGs.
 
-Pass 4B is an isolated generator mode for architectural review of the Intelligence Observatory roof opening. It starts from the complete validated Pass 3 PBR configuration, requires the existing base-color, normal, and ORM atlases, and writes only `orgintel-headquarters-atrium-pass4-observatory-review.glb`. The live V5 Pass 3 loader remains unchanged and continues to target `orgintel-headquarters-atrium-pass3-review.glb` before falling back to the Pass 2 production GLB and procedural atrium.
+Pass 4B is an isolated generator mode for architectural review of the Intelligence Observatory roof opening. It starts from the complete validated Pass 3 PBR configuration, requires the existing base-color, normal, and ORM atlases, and writes only `orgintel-headquarters-atrium-pass4-observatory-review.glb`. Pass 3 remains the default public experience: normal `/experience/` visits continue to request `orgintel-headquarters-atrium-pass3-review.glb` before falling back to the Pass 2 production GLB and procedural atrium. The Pass 4B review asset is loaded only by the exact review URL parameter `?atrium=pass4`, which prepends `orgintel-headquarters-atrium-pass4-observatory-review.glb` to the same fallback chain without changing stations, portals, lessons, room gates, progression, or default visitor behavior.
 
 New review command:
 
@@ -129,6 +129,37 @@ New review output:
 - `artifacts/orgintel-landing/public/experience/models/orgintel-headquarters-atrium-pass4-observatory-review.glb`
 
 The Pass 4B aperture is centered above the Intelligence Observatory viewing region near the existing station at `(46, 0)` and the preserved portal coordinate `(62, 0, 0)`. The generator removes only the obstructing Observatory ceiling coffer/practical-light cells and splits the long `CEILING_Beam_48` member into named north and south structural segments outside the opening. New deterministic rim nodes (`OBSERVATORY_ROOF_RimNorth`, `OBSERVATORY_ROOF_RimSouth`, `OBSERVATORY_ROOF_RimEast`, `OBSERVATORY_ROOF_RimWest`, `OBSERVATORY_ROOF_AccentNorth`, and `OBSERVATORY_ROOF_AccentSouth`) frame the open sky with existing metal, cyan, and gold material families while leaving the aperture center completely open. No skylight glass, frosted panel, transparent ceiling surface, decorative crossing mesh, or new bloom-heavy light is introduced.
+
+
+### Pass 4B review asset validation
+
+The reviewed Pass 4B GLB is present at `artifacts/orgintel-landing/public/experience/models/orgintel-headquarters-atrium-pass4-observatory-review.glb` with these validation results:
+
+- Size: 5,283,800 bytes
+- Nodes: 551
+- Meshes: 23
+- Materials: 15
+- SHA-256: `e10d510f756b6bbfb02a8a4f04f088675f651ff28259a02415c0e8c9c71d9b99`
+- Khronos validation: zero errors, warnings, infos, and hints
+
+### Query-controlled review workflow
+
+Use the exact review parameter `?atrium=pass4` to inspect Pass 4B in the live experience shell. For example, open `/experience/?atrium=pass4` for the review route, or `/experience/?atrium=pass4&perf=1` to combine the review GLB with the existing performance diagnostics panel. The runtime optimization switches remain reversible and independent: `pass4=0` disables Pass 4A runtime optimizations, while `lod=0` and `contacts=0` disable only their focused runtime layers. These optimization switches do not select or deselect the Pass 4B review asset; only `atrium=pass4` controls asset selection.
+
+Expected loader order:
+
+- Default `/experience/`: Pass 3 PBR atrium, then Pass 2 production atrium, then `ProceduralAtriumFallback`.
+- Review `/experience/?atrium=pass4`: Pass 4B Observatory review atrium, then Pass 3 PBR atrium, then Pass 2 production atrium, then `ProceduralAtriumFallback`.
+
+Status text confirms the active environment:
+
+- `V6 · Pass 4B Observatory review active` when Pass 4B loads.
+- `V5 · Pass 3 PBR atrium active · Pass 4B fallback` when Pass 4B fails and Pass 3 loads.
+- Existing default statuses remain unchanged for normal visitors.
+
+### Pass 4B rollback instructions
+
+Rollback remains text-only and does not require changing Pass 2, Pass 3, or atlas binaries. Remove the `?atrium=pass4` review parameter to return to the default Pass 3 route. If the review asset needs to be withdrawn, delete only `orgintel-headquarters-atrium-pass4-observatory-review.glb` from the review environment or revert the query-controlled loader addition; the public default continues to use Pass 3. Do not replace `orgintel-headquarters-atrium-production.glb`, `orgintel-headquarters-atrium-pass3-review.glb`, or any PNG atlas as part of Pass 4B rollback.
 
 ### Replit binary-generation workflow
 

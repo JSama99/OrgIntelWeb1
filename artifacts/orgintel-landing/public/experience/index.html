@@ -1136,7 +1136,50 @@ function boot() {
   if (THREE.GLTFLoader) {
     const modelLoader = new THREE.GLTFLoader();
 
+    let atriumLoadFinished = false;
+    let atriumSceneAdded = false;
+    const usePass4AtriumReview = params.get('atrium') === 'pass4';
+    const atriumCandidates = usePass4AtriumReview
+      ? [
+        {
+          url: './models/orgintel-headquarters-atrium-pass4-observatory-review.glb',
+          status: 'V6 · Pass 4B Observatory review active',
+          fallbackStatus: 'V5 · Pass 3 PBR atrium active · Pass 4B fallback',
+          label: 'Pass 4B Observatory review atrium'
+        },
+        {
+          url: './models/orgintel-headquarters-atrium-pass3-review.glb',
+          status: 'V5 · Pass 3 PBR atrium active · Pass 4B fallback',
+          label: 'Pass 3 atrium'
+        },
+        {
+          url: './models/orgintel-headquarters-atrium-production.glb',
+          status: 'V4 · production atrium active · Pass 3 fallback',
+          label: 'Pass 2 production atrium'
+        }
+      ]
+      : [
+        {
+          url: './models/orgintel-headquarters-atrium-pass3-review.glb',
+          status: 'V5 · Pass 3 PBR atrium active',
+          label: 'Pass 3 atrium'
+        },
+        {
+          url: './models/orgintel-headquarters-atrium-production.glb',
+          status: 'V4 · production atrium active · Pass 3 fallback',
+          label: 'Pass 2 production atrium'
+        }
+      ];
+
+    const finishAtriumAttempt = (ok) => {
+      if (atriumLoadFinished) return;
+      atriumLoadFinished = true;
+      assetFinished(ok);
+    };
+
     const activateAtrium = (gltf, statusText) => {
+      if (atriumSceneAdded) return;
+      atriumSceneAdded = true;
       const model = gltf.scene;
       prepareProductionAtrium(model);
       registerAtriumRuntimeDetails(model);
@@ -1145,22 +1188,30 @@ function boot() {
       proceduralAtriumFallback.visible = false;
       activeAtriumStatus = statusText;
       assetCredit.textContent = statusText;
-      assetFinished(true);
+      finishAtriumAttempt(true);
     };
 
-    modelLoader.load('./models/orgintel-headquarters-atrium-pass3-review.glb', (gltf) => {
-      activateAtrium(gltf, 'V5 · Pass 3 PBR atrium active');
-    }, undefined, (pass3Error) => {
-      console.warn('Pass 3 atrium GLB failed to load; attempting the Pass 2 production asset.', pass3Error);
-      modelLoader.load('./models/orgintel-headquarters-atrium-production.glb', (gltf) => {
-        activateAtrium(gltf, 'V4 · production atrium active · Pass 3 fallback');
-      }, undefined, (productionError) => {
-        console.warn('Production atrium GLBs failed to load; keeping ProceduralAtriumFallback visible.', productionError);
+    const loadAtriumCandidate = (index) => {
+      const candidate = atriumCandidates[index];
+      if (!candidate) {
+        console.warn('Production atrium GLBs failed to load; keeping ProceduralAtriumFallback visible.');
         proceduralAtriumFallback.visible = true;
         assetCredit.textContent = 'V3 · procedural fallback · atrium unavailable';
-        assetFinished(false);
+        finishAtriumAttempt(false);
+        return;
+      }
+
+      modelLoader.load(candidate.url, (gltf) => {
+        activateAtrium(gltf, candidate.status);
+      }, undefined, (error) => {
+        const nextCandidate = atriumCandidates[index + 1];
+        if (candidate.fallbackStatus && nextCandidate) nextCandidate.status = candidate.fallbackStatus;
+        console.warn(candidate.label + ' GLB failed to load; attempting atrium fallback.', error);
+        loadAtriumCandidate(index + 1);
       });
-    });
+    };
+
+    loadAtriumCandidate(0);
 
     modelLoader.load('./models/founder.glb', (gltf) => {
       const model = gltf.scene;
