@@ -650,11 +650,12 @@ function boot() {
     console.warn('Reflection environment unavailable; continuing with direct lighting.', error);
   }
 
-  const runtimePass4 = { enabled: true, lod: true, contactDepth: true };
+  const runtimePass4 = { enabled: true, lod: true, contactDepth: true, instancing: true };
   const params = new URLSearchParams(location.search);
   if (params.get('pass4') === '0') { runtimePass4.enabled = false; runtimePass4.lod = false; runtimePass4.contactDepth = false; }
   if (params.get('lod') === '0') runtimePass4.lod = false;
   if (params.get('contacts') === '0') runtimePass4.contactDepth = false;
+  if (params.get('batch') === '0') runtimePass4.instancing = false;
   const deviceTier = (() => {
     const ua = navigator.userAgent || '';
     const coarse = matchMedia('(pointer: coarse)').matches;
@@ -1083,6 +1084,111 @@ function boot() {
   }
 
 
+
+
+  const atriumInstanceStats = { enabled: runtimePass4.instancing, batches: 0, sourceMeshes: 0, totalInstances: 0 };
+  function hasAtriumBatchExcludedMetadata(object) {
+    let current = object;
+    while (current) {
+      const data = current.userData || {};
+      if (data.roomId !== undefined || data.roomLabel !== undefined || data.interactiveReserved !== undefined || data.walkable !== undefined || data.collision !== undefined) return true;
+      if (data.requiredForRaycasting || data.raycastTarget || data.interactive || data.station || data.animated || data.animation || data.pass4RuntimeContactDepth) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+  function isAtriumBatchExcludedByName(name) {
+    return /^(PORTAL_|PATH_|KIOSK_|COL_)/i.test(name)
+      || /(station|lesson|founder|\btal\b|intelligence\s*core\s*character|glass|frosted|transparent|collision|boundary|player|raycast|interactive|Pass4RuntimeContactDepth)/i.test(name);
+  }
+  function isAtriumBatchSafeMaterial(material) {
+    if (!material || Array.isArray(material)) return false;
+    if (material.transparent || material.opacity < 1 || material.transmission > 0 || material.thickness > 0) return false;
+    const name = material.name || '';
+    return !/(glass|frosted|transparent|transmissive)/i.test(name);
+  }
+  function isAtriumBatchCandidate(mesh) {
+    if (!mesh || !mesh.isMesh || mesh.isInstancedMesh || mesh.isSkinnedMesh) return false;
+    if (!mesh.geometry || !isAtriumBatchSafeMaterial(mesh.material)) return false;
+    if (mesh.morphTargetInfluences || mesh.morphTargetDictionary) return false;
+    if (mesh.userData && mesh.userData.pass4LOD) return false;
+    if (classifyAtriumLOD(mesh.name || '')) return false;
+    if (hasAtriumBatchExcludedMetadata(mesh)) return false;
+    let current = mesh;
+    while (current) {
+      if (isAtriumBatchExcludedByName(current.name || '')) return false;
+      current = current.parent;
+    }
+    return true;
+  }
+  function createAtriumInstanceBatches(model, gltf) {
+    atriumInstanceStats.enabled = runtimePass4.enabled && runtimePass4.instancing && !!THREE.InstancedMesh;
+    atriumInstanceStats.batches = 0;
+    atriumInstanceStats.sourceMeshes = 0;
+    atriumInstanceStats.totalInstances = 0;
+    if (!runtimePass4.enabled || !runtimePass4.instancing || !THREE.InstancedMesh) return;
+    model.updateMatrixWorld(true);
+    const rootInverse = new THREE.Matrix4().copy(model.matrixWorld).invert();
+    const groups = new Map();
+    let nextGeometryId = 1, nextMaterialId = 1;
+    const geometryIds = new WeakMap(), materialIds = new WeakMap();
+    const idFor = (map, object, nextSetter) => {
+      let id = map.get(object);
+      if (!id) { id = nextSetter(); map.set(object, id); }
+      return id;
+    };
+    const animatedNodeNames = new Set();
+    if (gltf && Array.isArray(gltf.animations)) {
+      gltf.animations.forEach((clip) => {
+        (clip.tracks || []).forEach((track) => {
+          const nodeName = (track.name || '').split('.')[0];
+          if (nodeName) animatedNodeNames.add(nodeName);
+        });
+      });
+    }
+    const meshes = [];
+    model.traverse((o) => { if (isAtriumBatchCandidate(o) && !animatedNodeNames.has(o.name || '')) meshes.push(o); });
+    meshes.forEach((mesh) => {
+      const gid = idFor(geometryIds, mesh.geometry, () => nextGeometryId++);
+      const mid = idFor(materialIds, mesh.material, () => nextMaterialId++);
+      const key = [gid, mid, mesh.castShadow ? 1 : 0, mesh.receiveShadow ? 1 : 0].join('|');
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(mesh);
+    });
+    let batchIndex = 0;
+    const batchRoot = new THREE.Group();
+    batchRoot.name = 'Pass4Batch_Root';
+    batchRoot.userData.pass4InstanceBatchRoot = true;
+    const reusable = new THREE.Matrix4();
+    groups.forEach((items) => {
+      if (items.length < 2) return;
+      const sample = items[0];
+      const batch = new THREE.InstancedMesh(sample.geometry, sample.material, items.length);
+      batch.name = 'Pass4Batch_' + String(batchIndex++).padStart(3, '0') + '_' + (sample.geometry.name || sample.name || 'Mesh').replace(/[^A-Za-z0-9_]+/g, '_').slice(0, 48);
+      batch.castShadow = sample.castShadow;
+      batch.receiveShadow = sample.receiveShadow;
+      batch.frustumCulled = false;
+      batch.raycast = function () {};
+      batch.userData.pass4InstanceBatch = true;
+      batch.userData.sourceMeshNames = items.map((m) => m.name || 'UnnamedMesh');
+      items.forEach((mesh, index) => {
+        mesh.updateMatrixWorld(true);
+        reusable.multiplyMatrices(rootInverse, mesh.matrixWorld);
+        batch.setMatrixAt(index, reusable);
+      });
+      if (batch.instanceMatrix) {
+        batch.instanceMatrix.needsUpdate = true;
+        if (THREE.StaticDrawUsage !== undefined) batch.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+      }
+      batchRoot.add(batch);
+      items.forEach((mesh) => { if (mesh.parent) mesh.parent.remove(mesh); });
+      atriumInstanceStats.batches++;
+      atriumInstanceStats.sourceMeshes += items.length;
+      atriumInstanceStats.totalInstances += items.length;
+    });
+    if (batchRoot.children.length) model.add(batchRoot);
+  }
+
   const atriumLOD = { groups: [], last: 0, interval: 360 };
   let activeAtriumStatus = 'V3 · procedural fallback · loading production atrium…';
   let contactDepthSystem = null;
@@ -1128,7 +1234,29 @@ function boot() {
     const geom = new THREE.PlaneBufferGeometry(1, 1);
     const high = [[0,0,6,7],[-18,0,4,5],[18,0,4,5],[-32,-18,4,4],[32,-18,4,4],[-24,18,4,4],[24,18,4,4],[0,28,9,4],[0,-32,10,5],[-48,-26,6,4],[48,-26,6,4]];
     const medium = [[0,0,6,7],[0,28,9,4],[0,-32,10,5],[-18,0,4,5],[18,0,4,5]];
-    const build = (items) => { group.clear(); items.forEach(([x,z,sx,sz]) => { const m = new THREE.Mesh(geom, mat); m.rotation.x = -Math.PI / 2; m.position.set(x, .018, z); m.scale.set(sx, sz, 1); m.raycast = function () {}; group.add(m); }); };
+    const build = (items) => {
+      group.clear();
+      if (runtimePass4.instancing && THREE.InstancedMesh) {
+        const batch = new THREE.InstancedMesh(geom, mat, items.length);
+        batch.name = 'Pass4RuntimeContactDepth_Instanced';
+        batch.frustumCulled = false;
+        batch.raycast = function () {};
+        const matrix = new THREE.Matrix4();
+        const position = new THREE.Vector3();
+        const quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+        const scale = new THREE.Vector3();
+        items.forEach(([x,z,sx,sz], index) => {
+          position.set(x, .018, z); scale.set(sx, sz, 1); matrix.compose(position, quaternion, scale); batch.setMatrixAt(index, matrix);
+        });
+        if (batch.instanceMatrix) {
+          batch.instanceMatrix.needsUpdate = true;
+          if (THREE.StaticDrawUsage !== undefined) batch.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+        }
+        group.add(batch);
+        return;
+      }
+      items.forEach(([x,z,sx,sz]) => { const m = new THREE.Mesh(geom, mat); m.rotation.x = -Math.PI / 2; m.position.set(x, .018, z); m.scale.set(sx, sz, 1); m.raycast = function () {}; group.add(m); });
+    };
     group.userData.refresh = () => { group.visible = runtimePass4.enabled && runtimePass4.contactDepth && quality.level > 0; build(quality.level === 2 ? high : medium); };
     group.userData.refresh(); scene.add(group); return { group, refresh: group.userData.refresh };
   }
@@ -1182,6 +1310,7 @@ function boot() {
       atriumSceneAdded = true;
       const model = gltf.scene;
       prepareProductionAtrium(model);
+      createAtriumInstanceBatches(model, gltf);
       registerAtriumRuntimeDetails(model);
       scene.add(model);
       refreshAtriumLOD(true);
@@ -2200,7 +2329,7 @@ function boot() {
     perfDiagnostics.frames = 0; perfDiagnostics.elapsedMs = 0;
     const info = perfDiagnostics.lastRenderInfo;
     const tier = quality.level === 2 ? 'high' : quality.level === 1 ? 'medium' : 'low';
-    const rows = [['FPS', fps.toFixed(0)], ['Avg frame', avg.toFixed(1) + ' ms'], ['GPU draw calls', info.calls], ['Rendered triangles', info.triangles], ['Textures', info.textures], ['Geometries', info.geometries], ['Quality', tier + (quality.mode === 'manual' ? ' manual' : ' auto')], ['Atrium', activeAtriumStatus]];
+    const rows = [['FPS', fps.toFixed(0)], ['Avg frame', avg.toFixed(1) + ' ms'], ['GPU draw calls', info.calls], ['Rendered triangles', info.triangles], ['Textures', info.textures], ['Geometries', info.geometries], ['Quality', tier + (quality.mode === 'manual' ? ' manual' : ' auto')], ['Atrium', activeAtriumStatus], ['Instancing', atriumInstanceStats.enabled ? 'on' : 'off'], ['Instance batches', atriumInstanceStats.batches], ['Source meshes consolidated', atriumInstanceStats.sourceMeshes], ['Total instances', atriumInstanceStats.totalInstances]];
     perfPanelRows.innerHTML = rows.map(([k, v]) => '<div class="row"><span>' + k + '</span><span class="value">' + v + '</span></div>').join('');
   }
   let raf = null, running = false;
