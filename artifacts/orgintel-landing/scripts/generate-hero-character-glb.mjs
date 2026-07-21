@@ -537,6 +537,24 @@ for (let pi = 0; pi < parts.length; pi++) {
 }
 
 // ---------------------------------------------------------------------------
+// Fix HERO_Head pivot: add inverse translations to head-group mesh nodes.
+// HERO_Head will be positioned at the actual neck/head pivot (y = Y.headCenter).
+// Each head mesh child receives translation [0, -Y.headCenter, 0] so its final
+// world placement is unchanged, but rotations on HERO_Head spin around the pivot.
+// ---------------------------------------------------------------------------
+const HEAD_PIVOT_Y = Y.headCenter; // 1.58
+const HEAD_MESH_NAMES = new Set([
+  "mesh_Head", "mesh_Nose", "mesh_Lips",
+  "mesh_EyeWhiteL", "mesh_EyeIrisL", "mesh_EyeWhiteR", "mesh_EyeIrisR",
+  "mesh_EarL", "mesh_EarR", "mesh_Hair",
+]);
+for (const n of nodes) {
+  if (HEAD_MESH_NAMES.has(n.name)) {
+    n.translation = [0, -HEAD_PIVOT_Y, 0];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Node hierarchy — HERO_ skeleton transform nodes
 // ---------------------------------------------------------------------------
 // Map mesh node indices by name
@@ -591,8 +609,8 @@ const heroLeftArm = addSkelNode("HERO_LeftArm", null,
 const heroRightArm = addSkelNode("HERO_RightArm", null,
   [...collectChildren("mesh_UpperArmR", "mesh_ElbowR", "mesh_ShoulderR", "mesh_EpauletteR"), heroRightForearm]);
 
-// HERO_Head — no translation; head geometry is already at world y≈1.58
-const heroHead = addSkelNode("HERO_Head", null,
+// HERO_Head — positioned at neck/head pivot; mesh children carry inverse offsets
+const heroHead = addSkelNode("HERO_Head", [0, HEAD_PIVOT_Y, 0],
   collectChildren("mesh_Head","mesh_Nose","mesh_Lips",
     "mesh_EyeWhiteL","mesh_EyeIrisL","mesh_EyeWhiteR","mesh_EyeIrisR",
     "mesh_EarL","mesh_EarR","mesh_Hair"));

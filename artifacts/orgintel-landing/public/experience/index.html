@@ -922,8 +922,10 @@ function boot() {
 
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map:tealGlow, transparent:true, depthWrite:false, opacity:.38 }));
   halo.scale.set(6.5, 3.2, 1); halo.position.y = .12; halo.rotation.x = Math.PI / 2; player.add(halo);
+  player.userData.halo = halo;
   const lamp = new THREE.PointLight(0x1fe0c6, 14, 24, 2);
   lamp.position.y = 2.5; player.add(lamp);
+  player.userData.lamp = lamp;
   player.position.set(0, 0, 28);
   scene.add(player);
 
@@ -1341,10 +1343,10 @@ function boot() {
     function loadCharacterAsset(options) {
       const candidates = options.requestReview
         ? [
-            { url: options.reviewUrl, status: 'review', label: options.label + ' review' },
-            { url: options.productionUrl, status: 'production fallback', label: options.label + ' production fallback' }
+            { url: options.reviewUrl, status: 'review', label: options.label + ' review', scale: options.reviewScale != null ? options.reviewScale : options.scale },
+            { url: options.productionUrl, status: 'production fallback', label: options.label + ' production fallback', scale: options.scale }
           ]
-        : [{ url: options.productionUrl, status: 'production', label: options.label + ' production' }];
+        : [{ url: options.productionUrl, status: 'production', label: options.label + ' production', scale: options.scale }];
       const loadCandidate = (index) => {
         const candidate = candidates[index];
         if (!candidate) {
@@ -1354,11 +1356,12 @@ function boot() {
         }
         modelLoader.load(candidate.url, (gltf) => {
           const model = gltf.scene;
-          prepareLoadedModel(model, options.scale, new THREE.Vector3(0, 0, 0), options.rotationY);
+          prepareLoadedModel(model, candidate.scale, new THREE.Vector3(0, 0, 0), options.rotationY);
           options.anchor.add(model);
           options.placeholder.visible = false;
           options.anchor.userData.loadedModel = model;
           characterAssetStatus[options.statusKey] = candidate.status;
+          if (candidate.status === 'review' && options.reviewOnSuccess) options.reviewOnSuccess();
           assetFinished(true);
         }, undefined, (error) => {
           if (index + 1 < candidates.length) {
@@ -1383,7 +1386,13 @@ function boot() {
       anchor: player,
       placeholder: playerModel,
       scale: 1.0,
-      rotationY: Math.PI
+      reviewScale: 2.6,
+      rotationY: Math.PI,
+      reviewOnSuccess: () => {
+        const ph = player.userData.halo; const pl = player.userData.lamp;
+        if (ph) { ph.scale.set(3.6, 1.8, 1); ph.material.opacity = 0.16; }
+        if (pl) { pl.intensity = 5; }
+      }
     });
 
     loadCharacterAsset({

@@ -90,9 +90,9 @@ Future character realism work must preserve all Stage 4–9 lessons, `orgintel-h
 
 ---
 
-## C2A Review Asset — Hero Character GLB
+## C2A Review Asset — Hero Character GLB (Revision 2)
 
-**Generated:** 2026-07-20  
+**Generated:** 2026-07-21  
 **File:** `./models/orgintel-hero-character-review.glb`  
 **Generator script:** `scripts/generate-hero-character-glb.mjs`  
 **Review URL:** `/experience/?perf=1&hero=review`
@@ -101,8 +101,8 @@ Future character realism work must preserve all Stage 4–9 lessons, `orgintel-h
 
 | Metric | Value |
 |---|---|
-| File size | 336,822 bytes (0.321 MB) |
-| SHA-256 | `ee5bb96613224c904d7b6a869db361ac296c6c77ec9c149e56125599ab49b82e` |
+| File size | 337,110 bytes (0.321 MB) |
+| SHA-256 | `88b7e78d6d3d2f1e2475059b41e5410e42f67b707aff7881145ece453c539b43` |
 | glTF validation errors | **0** |
 | Triangle count | **9,066** (budget: 6,000–12,000 ✓) |
 | Node count | 67 |
@@ -118,7 +118,7 @@ All named transform nodes carry `HERO_` prefixes. Root is `HERO_Root` at floor o
 HERO_Root
 └── HERO_Hips
     ├── HERO_Torso
-    │   ├── HERO_Head
+    │   ├── HERO_Head  ← positioned at neck pivot [0, 1.58, 0]
     │   ├── HERO_LeftArm
     │   │   └── HERO_LeftForearm
     │   │       └── HERO_LeftHand
@@ -128,6 +128,24 @@ HERO_Root
     ├── HERO_LeftLeg
     └── HERO_RightLeg
 ```
+
+### Head animation pivot (C2A revision 2)
+
+`HERO_Head` is now positioned at `[0, 1.58, 0]` (the actual neck/head pivot). All head mesh children carry an inverse local translation of `[0, -1.58, 0]` so their final world placement is unchanged. Rotating `HERO_Head` in `Hero_Idle`, `Hero_Observe`, and `Hero_Console` now spins around the neck area rather than the floor origin.
+
+### Review runtime scale and lighting
+
+| Setting | Value |
+|---|---|
+| Review Hero scale (`?hero=review`) | **2.6** |
+| Effective displayed height | **~4.68 scene units** (matches procedural Hero silhouette) |
+| Production Hero scale | 1.0 (unchanged) |
+| Tal scale | 1.12 (unchanged) |
+| Review halo scale | 3.6 × 1.8 (reduced from 6.5 × 3.2) |
+| Review halo opacity | 0.16 (reduced from 0.38) |
+| Review point-light intensity | 5 (reduced from 14) |
+
+Review scale and glow reduction apply only when the review candidate loads successfully (`?hero=review`). Production-character lighting and fallback lighting are untouched.
 
 ### Embedded animation clips
 
